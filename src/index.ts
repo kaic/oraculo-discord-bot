@@ -13,7 +13,7 @@ import { askGemini } from "./gemini";
 import { buildGeminiRequest } from "./prompts";
 import { getLastPentakill, getLatestLolMatch } from "./riot";
 import type { DiscordInteraction, Env, RiotMatchSummary, RiotPentaResult } from "./types";
-import { extractRiotIds, isAllowedGuild, normalizeText, toBoolean, truncate } from "./utils";
+import { detectQueue, extractRiotIds, isAllowedGuild, normalizeText, toBoolean, truncate } from "./utils";
 
 const ORACLE_COMMAND = "oraculo";
 const QUESTION_OPTION = "pergunta";
@@ -72,19 +72,23 @@ async function processOracle(interaction: DiscordInteraction, question: string, 
 
     if (riotIds.length > 0 && apiKey) {
       const region = env.RIOT_ROUTING_REGION || "americas";
+      const queue = detectQueue(question);
       if (wantsPentakill) {
         penta = await withTimeout(
-          getLastPentakill(riotIds, apiKey, region),
-          8000,
+          getLastPentakill(riotIds, apiKey, region, 40, queue?.ids),
+          12000,
           "Tempo excedido ao consultar pentakills na API da Riot."
         ).catch((error) => {
           console.warn("Consulta de pentakill à Riot falhou; a resposta seguirá com busca web", error);
           return null;
         });
+        if (penta && queue) {
+          penta = { ...penta, queueLabel: queue.label };
+        }
       } else {
         riotMatch = await withTimeout(
-          getLatestLolMatch(riotIds, apiKey, region),
-          6000,
+          getLatestLolMatch(riotIds, apiKey, region, queue?.ids),
+          queue ? 12000 : 6000,
           "Tempo excedido ao consultar a API da Riot."
         ).catch((error) => {
           console.warn("Consulta à Riot falhou; a resposta seguirá com busca web", error);
@@ -121,7 +125,9 @@ async function processOracle(interaction: DiscordInteraction, question: string, 
         question,
         answer,
         image,
-        model
+        model,
+        match: riotMatch,
+        penta
       })
     });
   } catch (error) {

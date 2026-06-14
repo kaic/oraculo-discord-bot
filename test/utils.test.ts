@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  detectQueue,
   extractRiotIds,
   formatDuration,
   isAllowedGuild,
@@ -30,6 +31,14 @@ describe("extractRiotIds", () => {
 
   it("retorna vazio quando não há tag", () => {
     expect(extractRiotIds("qual a build de MF?")).toHaveLength(0);
+  });
+});
+
+describe("detectQueue", () => {
+  it("separa por fila quando mencionada", () => {
+    expect(detectQueue("meu último penta na ranqueada")?.label).toBe("Ranqueada");
+    expect(detectQueue("penta no ARAM")?.ids).toEqual([450]);
+    expect(detectQueue("qual a build de Ahri")).toBeNull();
   });
 });
 

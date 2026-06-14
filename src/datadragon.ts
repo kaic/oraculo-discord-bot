@@ -79,6 +79,7 @@ export async function findChampionImage(question: string): Promise<ChampionImage
       if (champion) {
         return {
           championName: champion.name,
+          id: champion.id,
           url: `https://ddragon.leagueoflegends.com/cdn/${version}/img/champion/${champion.image.full}`
         };
       }
@@ -90,6 +91,7 @@ export async function findChampionImage(question: string): Promise<ChampionImage
       if (candidates.some((candidate) => normalizedQuestion.includes(candidate))) {
         return {
           championName: champion.name,
+          id: champion.id,
           url: `https://ddragon.leagueoflegends.com/cdn/${version}/img/champion/${champion.image.full}`
         };
       }

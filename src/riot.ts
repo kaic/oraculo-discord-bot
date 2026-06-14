@@ -125,6 +125,38 @@ async function fetchMatch(routing: string, matchId: string, apiKey: string): Pro
   );
 }
 
+// Varre os matchIds (já vêm do mais recente para o mais antigo) em lotes para
+// não estourar o rate limit da Riot, e para no primeiro que casar o predicado —
+// ou seja, devolve a ocorrência mais recente sem precisar baixar todas as partidas.
+async function findFirstMatch(
+  routing: string,
+  matchIds: string[],
+  apiKey: string,
+  puuid: string,
+  predicate: (participant: RiotParticipant, match: RiotMatch) => boolean
+): Promise<{ match: RiotMatch; participant: RiotParticipant } | null> {
+  const concurrency = 10;
+
+  for (let i = 0; i < matchIds.length; i += concurrency) {
+    const chunk = matchIds.slice(i, i + concurrency);
+    const matches = await Promise.all(
+      chunk.map((id) => fetchMatch(routing, id, apiKey).catch(() => null))
+    );
+
+    for (const match of matches) {
+      if (!match) {
+        continue;
+      }
+      const participant = match.info.participants.find((item) => item.puuid === puuid);
+      if (participant && predicate(participant, match)) {
+        return { match, participant };
+      }
+    }
+  }
+
+  return null;
+}
+
 function summarize(
   match: RiotMatch,
   participant: RiotParticipant,
@@ -153,31 +185,47 @@ function summarize(
 export async function getLatestLolMatch(
   candidates: RiotId[],
   apiKey: string,
-  routingRegion = "americas"
+  routingRegion = "americas",
+  queueIds?: number[]
 ): Promise<RiotMatchSummary> {
   const routing = routingRegion.trim().toLowerCase() || "americas";
   const { account, riotId } = await resolveAccount(candidates, apiKey, routing);
 
-  const matchIds = await fetchMatchIds(routing, account.puuid, apiKey, 1);
-  const matchId = matchIds[0];
-  if (!matchId) {
+  // Sem filtro de fila, basta a última partida; com filtro, varremos o histórico
+  // recente até achar a partida mais recente daquela fila.
+  if (!queueIds || queueIds.length === 0) {
+    const matchIds = await fetchMatchIds(routing, account.puuid, apiKey, 1);
+    const matchId = matchIds[0];
+    if (!matchId) {
+      throw new Error("Nenhuma partida recente foi encontrada para esse Riot ID.");
+    }
+    const match = await fetchMatch(routing, matchId, apiKey);
+    const participant = match.info.participants.find((item) => item.puuid === account.puuid);
+    if (!participant) {
+      throw new Error("O jogador não apareceu nos dados da partida encontrada.");
+    }
+    return summarize(match, participant, riotId, account);
+  }
+
+  const matchIds = await fetchMatchIds(routing, account.puuid, apiKey, 40);
+  if (matchIds.length === 0) {
     throw new Error("Nenhuma partida recente foi encontrada para esse Riot ID.");
   }
-
-  const match = await fetchMatch(routing, matchId, apiKey);
-  const participant = match.info.participants.find((item) => item.puuid === account.puuid);
-  if (!participant) {
-    throw new Error("O jogador não apareceu nos dados da partida encontrada.");
+  const found = await findFirstMatch(routing, matchIds, apiKey, account.puuid, (_, match) =>
+    queueIds.includes(match.info.queueId)
+  );
+  if (!found) {
+    throw new Error("Nenhuma partida recente nessa fila foi encontrada.");
   }
-
-  return summarize(match, participant, riotId, account);
+  return summarize(found.match, found.participant, riotId, account);
 }
 
 export async function getLastPentakill(
   candidates: RiotId[],
   apiKey: string,
   routingRegion = "americas",
-  scanCount = 15
+  scanCount = 40,
+  queueIds?: number[]
 ): Promise<RiotPentaResult> {
   const routing = routingRegion.trim().toLowerCase() || "americas";
   const { account, riotId } = await resolveAccount(candidates, apiKey, routing);
@@ -187,23 +235,22 @@ export async function getLastPentakill(
     return { found: false, scanned: 0 };
   }
 
-  // A match-v5 devolve os ids do mais recente para o mais antigo.
-  const matches = await Promise.all(
-    matchIds.map((id) => fetchMatch(routing, id, apiKey).catch(() => null))
+  const found = await findFirstMatch(
+    routing,
+    matchIds,
+    apiKey,
+    account.puuid,
+    (participant, match) =>
+      (participant.pentaKills ?? 0) > 0 &&
+      (!queueIds || queueIds.length === 0 || queueIds.includes(match.info.queueId))
   );
 
-  for (const match of matches) {
-    if (!match) {
-      continue;
-    }
-    const participant = match.info.participants.find((item) => item.puuid === account.puuid);
-    if (participant && (participant.pentaKills ?? 0) > 0) {
-      return {
-        found: true,
-        scanned: matchIds.length,
-        match: summarize(match, participant, riotId, account)
-      };
-    }
+  if (found) {
+    return {
+      found: true,
+      scanned: matchIds.length,
+      match: summarize(found.match, found.participant, riotId, account)
+    };
   }
 
   return { found: false, scanned: matchIds.length };

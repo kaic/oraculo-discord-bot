@@ -37,6 +37,21 @@ export function extractRiotIds(question: string): RiotId[] {
   return candidates;
 }
 
+// Detecta se a pergunta pede uma fila específica para separar as partidas.
+export function detectQueue(question: string): { ids: number[]; label: string } | null {
+  const normalized = normalizeText(question);
+  if (/\baram\b/.test(normalized)) {
+    return { ids: [450], label: "ARAM" };
+  }
+  if (/\b(ranqueada|ranqueado|ranked|rankeada|elo|soloq|solo q|flex)\b/.test(normalized)) {
+    return { ids: [420, 440], label: "Ranqueada" };
+  }
+  if (/\bnorma(l|is|les)\b/.test(normalized) || /\bnorm\b/.test(normalized)) {
+    return { ids: [400, 430, 490], label: "Normal" };
+  }
+  return null;
+}
+
 export function isAllowedGuild(guildId: string | undefined, configuredIds: string | undefined): boolean {
   const ids = (configuredIds ?? "")
     .split(",")

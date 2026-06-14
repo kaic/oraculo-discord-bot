@@ -80,9 +80,11 @@ export interface RiotPentaResult {
   found: boolean;
   scanned: number;
   match?: RiotMatchSummary;
+  queueLabel?: string;
 }
 
 export interface ChampionImage {
   championName: string;
   url: string;
+  id: string;
 }

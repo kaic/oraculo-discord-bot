@@ -1,8 +1,90 @@
-import type { ChampionImage, GeminiAnswer, SourceLink } from "./types";
-import { escapeMarkdownLabel, truncate } from "./utils";
+import type {
+  ChampionImage,
+  GeminiAnswer,
+  RiotMatchSummary,
+  RiotPentaResult,
+  SourceLink
+} from "./types";
+import { escapeMarkdownLabel, formatDuration, truncate } from "./utils";
 
 const DISCORD_API_BASE = "https://discord.com/api/v10";
 const EMBED_COLOR = 0x7c3aed;
+
+type EmbedField = { name: string; value: string; inline?: boolean };
+
+const QUEUE_LABELS: Record<number, string> = {
+  400: "Normal Draft",
+  420: "Ranqueada Solo/Duo",
+  430: "Normal Blind",
+  440: "Ranqueada Flex",
+  450: "ARAM",
+  490: "Normal (Quickplay)",
+  700: "Clash",
+  1700: "Arena",
+  1900: "URF"
+};
+
+function queueLabel(queueId: number, gameMode: string): string {
+  return QUEUE_LABELS[queueId] ?? gameMode ?? "Partida";
+}
+
+// Ids do Data Dragon que não batem com o slug de OP.GG/U.GG.
+const CHAMPION_SLUG_OVERRIDES: Record<string, string> = {
+  monkeyking: "wukong"
+};
+
+function championSlug(id: string): string {
+  const slug = id.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return CHAMPION_SLUG_OVERRIDES[slug] ?? slug;
+}
+
+function championLinksField(image: ChampionImage): EmbedField {
+  const slug = championSlug(image.id);
+  return {
+    name: "📈 Builds & stats",
+    value: `[OP.GG](https://op.gg/lol/champions/${slug}/build) · [U.GG](https://u.gg/lol/champions/${slug}/build)`
+  };
+}
+
+function kdaRatio(match: RiotMatchSummary): string {
+  if (match.deaths === 0) {
+    return "Perfeito";
+  }
+  return `${((match.kills + match.assists) / match.deaths).toFixed(2)}:1`;
+}
+
+// Renderiza os números da Riot direto em campos do embed, de forma determinística
+// e bonita, independente do texto que o Gemini escrever.
+function matchStatsFields(match: RiotMatchSummary, isPenta: boolean): EmbedField[] {
+  const fields: EmbedField[] = [
+    { name: "Campeão", value: match.championName, inline: true },
+    { name: "Resultado", value: match.win ? "🟢 Vitória" : "🔴 Derrota", inline: true }
+  ];
+
+  if (isPenta) {
+    fields.push({ name: "Pentakills", value: `🔥 ${match.pentaKills}`, inline: true });
+  }
+
+  fields.push(
+    { name: "KDA", value: `${match.kills}/${match.deaths}/${match.assists} · ${kdaRatio(match)}`, inline: true },
+    { name: "CS", value: String(match.cs), inline: true },
+    { name: "Visão", value: String(match.visionScore), inline: true },
+    {
+      name: "Partida",
+      value: `${queueLabel(match.queueId, match.gameMode)} · ${formatDuration(match.gameDurationSeconds)}`,
+      inline: true
+    }
+  );
+
+  if (match.endedAtIso) {
+    const unix = Math.floor(new Date(match.endedAtIso).getTime() / 1000);
+    if (Number.isFinite(unix)) {
+      fields.push({ name: "Quando", value: `<t:${unix}:R>`, inline: true });
+    }
+  }
+
+  return fields;
+}
 
 interface DiscordEmbed {
   title?: string;
@@ -22,7 +104,7 @@ interface DiscordMessagePayload {
   };
 }
 
-function sourcesMarkdown(sources: SourceLink[], searchQueries: string[]): string | null {
+function sourcesMarkdown(sources: SourceLink[]): string | null {
   const lines: string[] = [];
 
   for (const [index, source] of sources.entries()) {
@@ -35,13 +117,7 @@ function sourcesMarkdown(sources: SourceLink[], searchQueries: string[]): string
     lines.push(line);
   }
 
-  if (lines.length === 0 && searchQueries.length > 0) {
-    const query = searchQueries[0];
-    if (query) {
-      lines.push(`[Ver pesquisa relacionada no Google](https://www.google.com/search?q=${encodeURIComponent(query)})`);
-    }
-  }
-
+  // Sem links genéricos de busca: só mostramos fontes reais e direcionadas.
   return lines.length > 0 ? lines.join("\n") : null;
 }
 
@@ -50,20 +126,41 @@ export function buildSuccessMessage(params: {
   answer: GeminiAnswer;
   image?: ChampionImage | null;
   model: string;
+  match?: RiotMatchSummary | null;
+  penta?: RiotPentaResult | null;
 }): DiscordMessagePayload {
-  const sourceText = sourcesMarkdown(params.answer.sources, params.answer.searchQueries);
+  const sourceText = sourcesMarkdown(params.answer.sources);
   const description = truncate(params.answer.text, 3900);
-  const fields: Array<{ name: string; value: string; inline?: boolean }> = [];
+  const fields: EmbedField[] = [];
 
-  if (sourceText) {
+  // Estatísticas do jogador em destaque (grid), antes do texto-fonte.
+  let statTitle: string | null = null;
+  if (params.penta?.found && params.penta.match) {
+    const queueSuffix = params.penta.queueLabel ? ` · ${params.penta.queueLabel}` : "";
+    statTitle = `🔥 Último pentakill — ${params.penta.match.riotId}${queueSuffix}`;
+    fields.push(...matchStatsFields(params.penta.match, true));
+  } else if (params.penta && !params.penta.found) {
+    const queueSuffix = params.penta.queueLabel ? ` (${params.penta.queueLabel})` : "";
     fields.push({
-      name: "Fontes",
-      value: sourceText
+      name: "Pentakill",
+      value: `Nenhum nas últimas ${params.penta.scanned} partidas analisadas${queueSuffix}.`
     });
+  } else if (params.match) {
+    statTitle = `📊 Última partida — ${params.match.riotId}`;
+    fields.push(...matchStatsFields(params.match, false));
   }
 
+  if (params.image) {
+    fields.push(championLinksField(params.image));
+  }
+
+  if (sourceText) {
+    fields.push({ name: "Fontes", value: sourceText });
+  }
+
+  const titleChampion = params.penta?.match?.championName ?? params.match?.championName ?? params.image?.championName;
   const embed: DiscordEmbed = {
-    title: params.image ? `🔮 Oráculo — ${params.image.championName}` : "🔮 Oráculo",
+    title: statTitle ?? (titleChampion ? `🔮 Oráculo — ${titleChampion}` : "🔮 Oráculo"),
     description,
     color: EMBED_COLOR,
     footer: {

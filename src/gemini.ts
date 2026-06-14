@@ -58,9 +58,11 @@ export async function askGemini(params: {
         }
       ],
       generationConfig: {
-        temperature: 0.35,
+        temperature: 0.4,
         topP: 0.9,
-        maxOutputTokens: 2048
+        // Folga alta: o gemini-2.5-flash gasta parte do orçamento com "thinking",
+        // então um teto baixo cortava a resposta no meio.
+        maxOutputTokens: 6144
       },
       store: false
     };
