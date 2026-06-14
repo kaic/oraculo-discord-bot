@@ -1,0 +1,83 @@
+name: CI e deploy do Oráculo
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Typecheck e testes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Validar
+        run: npm run check
+
+  deploy:
+    name: Deploy no Cloudflare Workers
+    if: github.event_name != 'pull_request'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Deploy e sincronizar secrets do Worker
+        id: deploy
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
+          secrets: |
+            DISCORD_PUBLIC_KEY
+            DISCORD_APPLICATION_ID
+            GEMINI_API_KEY
+            RIOT_API_KEY
+            ALLOWED_GUILD_IDS
+        env:
+          DISCORD_PUBLIC_KEY: ${{ secrets.DISCORD_PUBLIC_KEY }}
+          DISCORD_APPLICATION_ID: ${{ secrets.DISCORD_APPLICATION_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          RIOT_API_KEY: ${{ secrets.RIOT_API_KEY }}
+          ALLOWED_GUILD_IDS: ${{ secrets.DISCORD_GUILD_ID }}
+
+      - name: Registrar ou atualizar /oraculo no servidor
+        env:
+          DISCORD_APPLICATION_ID: ${{ secrets.DISCORD_APPLICATION_ID }}
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          DISCORD_GUILD_ID: ${{ secrets.DISCORD_GUILD_ID }}
+        run: npm run register:command
+
+      - name: Mostrar URL implantada
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: |
+          echo "Worker implantado em: $DEPLOYMENT_URL"
+          echo "## Oráculo implantado" >> "$GITHUB_STEP_SUMMARY"
+          echo "Endpoint: $DEPLOYMENT_URL/interactions" >> "$GITHUB_STEP_SUMMARY"
