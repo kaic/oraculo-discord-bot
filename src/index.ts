@@ -11,9 +11,9 @@ import {
 } from "./discord";
 import { askGemini } from "./gemini";
 import { buildGeminiRequest } from "./prompts";
-import { getLatestLolMatch } from "./riot";
-import type { DiscordInteraction, Env, RiotMatchSummary } from "./types";
-import { extractRiotId, isAllowedGuild, toBoolean, truncate } from "./utils";
+import { getLastPentakill, getLatestLolMatch } from "./riot";
+import type { DiscordInteraction, Env, RiotMatchSummary, RiotPentaResult } from "./types";
+import { extractRiotIds, isAllowedGuild, normalizeText, toBoolean, truncate } from "./utils";
 
 const ORACLE_COMMAND = "oraculo";
 const QUESTION_OPTION = "pergunta";
@@ -57,39 +57,53 @@ async function processOracle(interaction: DiscordInteraction, question: string, 
   const model = env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
 
   try {
-    const riotId = extractRiotId(question);
+    const riotIds = extractRiotIds(question);
+    const apiKey = env.RIOT_API_KEY?.trim();
+    const wantsPentakill = /\bpenta/.test(normalizeText(question));
+
     const questionImagePromise = withTimeout(
       findChampionImage(question),
       5000,
       "Tempo excedido ao consultar imagem do campeão."
     ).catch(() => null);
 
-    const riotMatchPromise: Promise<RiotMatchSummary | null> =
-      riotId && env.RIOT_API_KEY?.trim()
-        ? withTimeout(
-            getLatestLolMatch(
-              riotId,
-              env.RIOT_API_KEY.trim(),
-              env.RIOT_ROUTING_REGION || "americas"
-            ),
-            6000,
-            "Tempo excedido ao consultar a API da Riot."
-          ).catch((error) => {
-            console.warn("Consulta à Riot falhou; a resposta seguirá com busca web", error);
-            return null;
-          })
-        : Promise.resolve(null);
+    let riotMatch: RiotMatchSummary | null = null;
+    let penta: RiotPentaResult | null = null;
 
-    const [riotMatch, questionImage] = await Promise.all([riotMatchPromise, questionImagePromise]);
+    if (riotIds.length > 0 && apiKey) {
+      const region = env.RIOT_ROUTING_REGION || "americas";
+      if (wantsPentakill) {
+        penta = await withTimeout(
+          getLastPentakill(riotIds, apiKey, region),
+          8000,
+          "Tempo excedido ao consultar pentakills na API da Riot."
+        ).catch((error) => {
+          console.warn("Consulta de pentakill à Riot falhou; a resposta seguirá com busca web", error);
+          return null;
+        });
+      } else {
+        riotMatch = await withTimeout(
+          getLatestLolMatch(riotIds, apiKey, region),
+          6000,
+          "Tempo excedido ao consultar a API da Riot."
+        ).catch((error) => {
+          console.warn("Consulta à Riot falhou; a resposta seguirá com busca web", error);
+          return null;
+        });
+      }
+    }
+
+    const questionImage = await questionImagePromise;
+    const matchForImage = penta?.match ?? riotMatch;
     const image =
-      riotMatch && !questionImage
+      matchForImage && !questionImage
         ? await withTimeout(
-            findChampionImage(riotMatch.championName),
+            findChampionImage(matchForImage.championName),
             3000,
             "Tempo excedido ao consultar imagem da partida."
           ).catch(() => null)
         : questionImage;
-    const prompt = buildGeminiRequest(question, riotMatch);
+    const prompt = buildGeminiRequest(question, riotMatch, penta);
 
     const answer = await askGemini({
       apiKey: env.GEMINI_API_KEY,

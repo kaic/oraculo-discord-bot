@@ -1,4 +1,4 @@
-import type { RiotMatchSummary } from "./types";
+import type { RiotMatchSummary, RiotPentaResult } from "./types";
 import { formatDuration, formatSaoPauloDate } from "./utils";
 
 const SYSTEM_INSTRUCTION = `Você é o Oráculo, assistente gamer de um servidor privado de amigos.
@@ -42,12 +42,39 @@ ${match.endedAtIso ? `- Fim da partida (UTC): ${match.endedAtIso}` : ""}
 Use esses números como fonte primária e não os altere.`;
 }
 
-export function buildGeminiRequest(question: string, riotMatch?: RiotMatchSummary | null): {
+function pentaContext(penta: RiotPentaResult): string {
+  if (penta.found && penta.match) {
+    const m = penta.match;
+    return `DADO ESTRUTURADO DA API OFICIAL DA RIOT — ÚLTIMO PENTAKILL ENCONTRADO (varredura das últimas ${penta.scanned} partidas):
+- Riot ID: ${m.riotId}
+- Campeão: ${m.championName}
+- Pentakills nessa partida: ${m.pentaKills}
+- K/D/A: ${m.kills}/${m.deaths}/${m.assists}
+- Resultado: ${m.win ? "vitória" : "derrota"}
+- Modo: ${m.gameMode}
+${m.endedAtIso ? `- Fim da partida (UTC): ${m.endedAtIso}` : ""}
+Use esses números como fonte primária e não os altere. Informe claramente o campeão e a data do pentakill.`;
+  }
+
+  return `DADO ESTRUTURADO DA API OFICIAL DA RIOT:
+Nenhum pentakill foi encontrado nas últimas ${penta.scanned} partidas analisadas dessa conta.
+Deixe claro que a verificação cobriu apenas as últimas ${penta.scanned} partidas e que pode haver pentakills mais antigos fora desse intervalo. Não invente data nem campeão.`;
+}
+
+export function buildGeminiRequest(
+  question: string,
+  riotMatch?: RiotMatchSummary | null,
+  penta?: RiotPentaResult | null
+): {
   systemInstruction: string;
   userPrompt: string;
 } {
   const currentDate = formatSaoPauloDate();
-  const structuredContext = riotMatch ? `\n\n${riotContext(riotMatch)}` : "";
+  const structuredContext = penta
+    ? `\n\n${pentaContext(penta)}`
+    : riotMatch
+      ? `\n\n${riotContext(riotMatch)}`
+      : "";
 
   return {
     systemInstruction: SYSTEM_INSTRUCTION,

@@ -69,10 +69,17 @@ export interface RiotMatchSummary {
   assists: number;
   cs: number;
   visionScore: number;
+  pentaKills: number;
   gameDurationSeconds: number;
   gameMode: string;
   queueId: number;
   endedAtIso?: string;
+}
+
+export interface RiotPentaResult {
+  found: boolean;
+  scanned: number;
+  match?: RiotMatchSummary;
 }
 
 export interface ChampionImage {

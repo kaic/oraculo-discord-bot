@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  extractRiotId,
+  extractRiotIds,
   formatDuration,
   isAllowedGuild,
   normalizeText,
@@ -14,16 +14,22 @@ describe("normalizeText", () => {
   });
 });
 
-describe("extractRiotId", () => {
-  it("extrai Riot ID simples", () => {
-    expect(extractRiotId("qual foi a última partida de Kaic#BR1?")) .toEqual({
+describe("extractRiotIds", () => {
+  it("extrai Riot ID simples como candidato", () => {
+    expect(extractRiotIds("qual foi a última partida de Kaic#BR1?")).toContainEqual({
       gameName: "Kaic",
       tagLine: "BR1"
     });
   });
 
-  it("retorna null quando não há tag", () => {
-    expect(extractRiotId("qual a build de MF?")) .toBeNull();
+  it("suporta nomes com espaço, com o candidato mais específico primeiro", () => {
+    const ids = extractRiotIds("quando foi o último penta de VAGABUNDO TA LÁ#NEYMA?");
+    expect(ids[0]).toEqual({ gameName: "VAGABUNDO TA LÁ", tagLine: "NEYMA" });
+    expect(ids).toContainEqual({ gameName: "LÁ", tagLine: "NEYMA" });
+  });
+
+  it("retorna vazio quando não há tag", () => {
+    expect(extractRiotIds("qual a build de MF?")).toHaveLength(0);
   });
 });
 

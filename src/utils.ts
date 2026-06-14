@@ -10,16 +10,31 @@ export function normalizeText(value: string): string {
     .replace(/\s+/g, " ");
 }
 
-export function extractRiotId(question: string): RiotId | null {
-  const match = question.match(/(?:^|\s|["'`(])([^\s#"'`(),]{2,24})#([\p{L}\p{N}]{2,8})(?=$|\s|["'`).,!?])/iu);
+export function extractRiotIds(question: string): RiotId[] {
+  // Riot game names têm até 16 caracteres e podem conter espaços, então
+  // capturamos a maior sequência válida antes do "#tag". Como em texto livre
+  // não dá para saber onde o nome começa, geramos candidatos do mais
+  // específico (nome completo) ao mais curto (removendo palavras iniciais) e
+  // deixamos a consulta à Riot escolher o que existe de fato.
+  const match = question.match(
+    /(?:^|[\s"'`(])([\p{L}\p{N}][\p{L}\p{N} ]{1,15})#([\p{L}\p{N}]{2,5})(?=$|[\s"'`).,!?])/u
+  );
   if (!match?.[1] || !match[2]) {
-    return null;
+    return [];
   }
 
-  return {
-    gameName: match[1].trim(),
-    tagLine: match[2].trim()
-  };
+  const tagLine = match[2].trim();
+  const words = match[1].trim().replace(/\s+/g, " ").split(" ");
+
+  const candidates: RiotId[] = [];
+  for (let i = 0; i < words.length; i += 1) {
+    const gameName = words.slice(i).join(" ");
+    if (gameName.length >= 2) {
+      candidates.push({ gameName, tagLine });
+    }
+  }
+
+  return candidates;
 }
 
 export function isAllowedGuild(guildId: string | undefined, configuredIds: string | undefined): boolean {
