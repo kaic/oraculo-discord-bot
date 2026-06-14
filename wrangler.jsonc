@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "oraculo-discord",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-14",
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "GEMINI_MODEL": "gemini-2.5-flash",
+    "ENABLE_GOOGLE_SEARCH": "true",
+    "RIOT_ROUTING_REGION": "americas",
+    "ENVIRONMENT": "production"
+  }
+}
