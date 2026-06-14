@@ -1,0 +1,18 @@
+# Copie para .dev.vars e preencha para desenvolvimento local.
+DISCORD_PUBLIC_KEY=
+DISCORD_APPLICATION_ID=
+GEMINI_API_KEY=
+
+# Opcional: habilita consulta exata da última partida de LoL por Riot ID Nome#TAG.
+RIOT_API_KEY=
+
+# Usado apenas pelo script npm run register:command.
+DISCORD_BOT_TOKEN=
+DISCORD_GUILD_ID=
+
+# Overrides opcionais.
+GEMINI_MODEL=gemini-2.5-flash
+ENABLE_GOOGLE_SEARCH=true
+ALLOWED_GUILD_IDS=
+RIOT_ROUTING_REGION=americas
+ENVIRONMENT=development
