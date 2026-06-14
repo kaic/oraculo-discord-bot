@@ -1,4 +1,4 @@
-import type { RiotId, RiotMatchSummary, RiotPentaResult } from "./types";
+import type { ChampionHistoryStat, MatchHistorySummary, RiotId, RiotMatchSummary, RiotPentaResult } from "./types";
 
 interface RiotAccount {
   puuid: string;
@@ -218,6 +218,65 @@ export async function getLatestLolMatch(
     throw new Error("Nenhuma partida recente nessa fila foi encontrada.");
   }
   return summarize(found.match, found.participant, riotId, account);
+}
+
+export async function getMatchHistorySummary(
+  candidates: RiotId[],
+  apiKey: string,
+  routingRegion = "americas",
+  count = 20,
+  queueIds?: number[]
+): Promise<MatchHistorySummary> {
+  const routing = routingRegion.trim().toLowerCase() || "americas";
+  const { account, riotId } = await resolveAccount(candidates, apiKey, routing);
+
+  const matchIds = await fetchMatchIds(routing, account.puuid, apiKey, count);
+  if (matchIds.length === 0) {
+    throw new Error("Nenhuma partida recente foi encontrada para esse Riot ID.");
+  }
+
+  const champMap = new Map<string, ChampionHistoryStat>();
+  const concurrency = 10;
+
+  for (let i = 0; i < matchIds.length; i += concurrency) {
+    const chunk = matchIds.slice(i, i + concurrency);
+    const matches = await Promise.all(chunk.map((id) => fetchMatch(routing, id, apiKey).catch(() => null)));
+
+    for (const match of matches) {
+      if (!match) continue;
+      if (queueIds && queueIds.length > 0 && !queueIds.includes(match.info.queueId)) continue;
+
+      const participant = match.info.participants.find((p) => p.puuid === account.puuid);
+      if (!participant) continue;
+
+      const name = participant.championName;
+      const existing: ChampionHistoryStat = champMap.get(name) ?? {
+        championName: name,
+        games: 0,
+        wins: 0,
+        kills: 0,
+        deaths: 0,
+        assists: 0,
+        cs: 0,
+        visionScore: 0
+      };
+
+      existing.games += 1;
+      existing.wins += participant.win ? 1 : 0;
+      existing.kills += participant.kills ?? 0;
+      existing.deaths += participant.deaths ?? 0;
+      existing.assists += participant.assists ?? 0;
+      existing.cs += (participant.totalMinionsKilled ?? 0) + (participant.neutralMinionsKilled ?? 0);
+      existing.visionScore += participant.visionScore ?? 0;
+
+      champMap.set(name, existing);
+    }
+  }
+
+  const champions = Array.from(champMap.values()).sort((a, b) => b.games - a.games);
+  const riotIdStr = `${account.gameName ?? riotId.gameName}#${account.tagLine ?? riotId.tagLine}`;
+
+  return { riotId: riotIdStr, totalGames: champions.reduce((s, c) => s + c.games, 0), champions };
 }
 
 export async function getLastPentakill(

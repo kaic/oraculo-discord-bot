@@ -83,6 +83,40 @@ export interface RiotPentaResult {
   queueLabel?: string;
 }
 
+export interface ChampionHistoryStat {
+  championName: string;
+  games: number;
+  wins: number;
+  kills: number;
+  deaths: number;
+  assists: number;
+  cs: number;
+  visionScore: number;
+}
+
+export interface MatchHistorySummary {
+  riotId: string;
+  totalGames: number;
+  champions: ChampionHistoryStat[];
+  queueLabel?: string;
+}
+
+export interface DeadlockHeroStat {
+  heroId: number;
+  heroName: string;
+  matches: number;
+  wins: number;
+  kills: number;
+  deaths: number;
+  assists: number;
+}
+
+export interface DeadlockPlayerSummary {
+  accountId: string;
+  heroStats: DeadlockHeroStat[];
+  totalMatches: number;
+}
+
 export interface ChampionImage {
   championName: string;
   url: string;

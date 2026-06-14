@@ -120,3 +120,31 @@ export function formatSaoPauloDate(date = new Date()): string {
 export function escapeMarkdownLabel(value: string): string {
   return value.replace(/[\[\]]/g, "").trim();
 }
+
+// Detecta se a pergunta pede um resumo de histórico (melhor campeão, desempenho geral, etc.)
+export function detectHistoryIntent(question: string): boolean {
+  const n = normalizeText(question);
+  return (
+    /\b(historico|desempenho|estatisticas|winrate|performance)\b/.test(n) ||
+    n.includes("jogo melhor") ||
+    n.includes("melhor de que") ||
+    n.includes("melhor campeao") ||
+    n.includes("mais jogado") ||
+    n.includes("win rate") ||
+    n.includes("mais joguei") ||
+    n.includes("mais jogo") ||
+    n.includes("mais vitorias") ||
+    n.includes("mais wins")
+  );
+}
+
+// Extrai Steam ID64 de texto livre (para busca de histórico no Deadlock).
+export function extractSteamId(question: string): string | null {
+  const direct = question.match(/\b(7656119\d{10})\b/);
+  if (direct?.[1]) return direct[1];
+
+  const fromUrl = question.match(/steamcommunity\.com\/profiles\/(\d{17})/);
+  if (fromUrl?.[1]) return fromUrl[1];
+
+  return null;
+}

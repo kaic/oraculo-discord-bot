@@ -1,6 +1,8 @@
 import type {
   ChampionImage,
+  DeadlockPlayerSummary,
   GeminiAnswer,
+  MatchHistorySummary,
   RiotMatchSummary,
   RiotPentaResult,
   SourceLink
@@ -121,6 +123,36 @@ function sourcesMarkdown(sources: SourceLink[]): string | null {
   return lines.length > 0 ? lines.join("\n") : null;
 }
 
+function matchHistoryFields(summary: MatchHistorySummary): EmbedField[] {
+  return summary.champions.slice(0, 5).map((c) => {
+    const wr = c.games > 0 ? ((c.wins / c.games) * 100).toFixed(0) : "0";
+    const avgKda =
+      c.games > 0
+        ? `${(c.kills / c.games).toFixed(1)}/${(c.deaths / c.games).toFixed(1)}/${(c.assists / c.games).toFixed(1)}`
+        : "–";
+    return {
+      name: `${c.championName} · ${c.games} jogo${c.games !== 1 ? "s" : ""}`,
+      value: `${c.wins}V/${c.games - c.wins}D · ${wr}% WR · KDA ${avgKda}`,
+      inline: true
+    };
+  });
+}
+
+function deadlockHistoryFields(summary: DeadlockPlayerSummary): EmbedField[] {
+  return summary.heroStats.slice(0, 5).map((h) => {
+    const wr = h.matches > 0 ? ((h.wins / h.matches) * 100).toFixed(0) : "0";
+    const avgKda =
+      h.matches > 0
+        ? `${(h.kills / h.matches).toFixed(1)}/${(h.deaths / h.matches).toFixed(1)}/${(h.assists / h.matches).toFixed(1)}`
+        : "–";
+    return {
+      name: `${h.heroName} · ${h.matches} partida${h.matches !== 1 ? "s" : ""}`,
+      value: `${h.wins}V/${h.matches - h.wins}D · ${wr}% WR · KDA ${avgKda}`,
+      inline: true
+    };
+  });
+}
+
 export function buildSuccessMessage(params: {
   question: string;
   answer: GeminiAnswer;
@@ -128,6 +160,8 @@ export function buildSuccessMessage(params: {
   model: string;
   match?: RiotMatchSummary | null;
   penta?: RiotPentaResult | null;
+  matchHistory?: MatchHistorySummary | null;
+  deadlockSummary?: DeadlockPlayerSummary | null;
 }): DiscordMessagePayload {
   const sourceText = sourcesMarkdown(params.answer.sources);
   const description = truncate(params.answer.text, 3900);
@@ -145,9 +179,16 @@ export function buildSuccessMessage(params: {
       name: "Pentakill",
       value: `Nenhum nas últimas ${params.penta.scanned} partidas analisadas${queueSuffix}.`
     });
+  } else if (params.matchHistory) {
+    const queueSuffix = params.matchHistory.queueLabel ? ` · ${params.matchHistory.queueLabel}` : "";
+    statTitle = `📊 Histórico — ${params.matchHistory.riotId}${queueSuffix} (${params.matchHistory.totalGames} partidas)`;
+    fields.push(...matchHistoryFields(params.matchHistory));
   } else if (params.match) {
     statTitle = `📊 Última partida — ${params.match.riotId}`;
     fields.push(...matchStatsFields(params.match, false));
+  } else if (params.deadlockSummary) {
+    statTitle = `🎯 Deadlock — histórico (${params.deadlockSummary.totalMatches} partidas)`;
+    fields.push(...deadlockHistoryFields(params.deadlockSummary));
   }
 
   if (params.image) {

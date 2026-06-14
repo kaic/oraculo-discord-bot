@@ -11,9 +11,26 @@ import {
 } from "./discord";
 import { askGemini } from "./gemini";
 import { buildGeminiRequest } from "./prompts";
-import { getLastPentakill, getLatestLolMatch } from "./riot";
-import type { DiscordInteraction, Env, RiotMatchSummary, RiotPentaResult } from "./types";
-import { detectQueue, extractRiotIds, isAllowedGuild, normalizeText, toBoolean, truncate } from "./utils";
+import { getDeadlockPlayerSummary } from "./deadlock";
+import { getLastPentakill, getLatestLolMatch, getMatchHistorySummary } from "./riot";
+import type {
+  DeadlockPlayerSummary,
+  DiscordInteraction,
+  Env,
+  MatchHistorySummary,
+  RiotMatchSummary,
+  RiotPentaResult
+} from "./types";
+import {
+  detectHistoryIntent,
+  detectQueue,
+  extractRiotIds,
+  extractSteamId,
+  isAllowedGuild,
+  normalizeText,
+  toBoolean,
+  truncate
+} from "./utils";
 
 const ORACLE_COMMAND = "oraculo";
 const QUESTION_OPTION = "pergunta";
@@ -69,10 +86,26 @@ async function processOracle(interaction: DiscordInteraction, question: string, 
 
     let riotMatch: RiotMatchSummary | null = null;
     let penta: RiotPentaResult | null = null;
+    let matchHistory: MatchHistorySummary | null = null;
+    let deadlockSummary: DeadlockPlayerSummary | null = null;
 
-    if (riotIds.length > 0 && apiKey) {
+    const steamId = extractSteamId(question);
+    const isDeadlockQuestion = /deadlock/i.test(question);
+    const wantsHistory = riotIds.length > 0 && detectHistoryIntent(question);
+
+    if (steamId && isDeadlockQuestion) {
+      deadlockSummary = await withTimeout(
+        getDeadlockPlayerSummary(steamId),
+        10000,
+        "Tempo excedido ao consultar histórico de Deadlock."
+      ).catch((error) => {
+        console.warn("Consulta ao Deadlock falhou; a resposta seguirá com busca web", error);
+        return null;
+      });
+    } else if (riotIds.length > 0 && apiKey) {
       const region = env.RIOT_ROUTING_REGION || "americas";
       const queue = detectQueue(question);
+
       if (wantsPentakill) {
         penta = await withTimeout(
           getLastPentakill(riotIds, apiKey, region, 40, queue?.ids),
@@ -84,6 +117,18 @@ async function processOracle(interaction: DiscordInteraction, question: string, 
         });
         if (penta && queue) {
           penta = { ...penta, queueLabel: queue.label };
+        }
+      } else if (wantsHistory) {
+        matchHistory = await withTimeout(
+          getMatchHistorySummary(riotIds, apiKey, region, 20, queue?.ids),
+          15000,
+          "Tempo excedido ao buscar histórico de partidas da Riot."
+        ).catch((error) => {
+          console.warn("Histórico à Riot falhou; a resposta seguirá com busca web", error);
+          return null;
+        });
+        if (matchHistory && queue) {
+          matchHistory = { ...matchHistory, queueLabel: queue.label };
         }
       } else {
         riotMatch = await withTimeout(
@@ -98,7 +143,8 @@ async function processOracle(interaction: DiscordInteraction, question: string, 
     }
 
     const questionImage = await questionImagePromise;
-    const matchForImage = penta?.match ?? riotMatch;
+    // Para histórico ou Deadlock não há um único campeão para imagem; usa apenas a do texto da pergunta.
+    const matchForImage = matchHistory || deadlockSummary ? null : (penta?.match ?? riotMatch);
     const image =
       matchForImage && !questionImage
         ? await withTimeout(
@@ -107,7 +153,7 @@ async function processOracle(interaction: DiscordInteraction, question: string, 
             "Tempo excedido ao consultar imagem da partida."
           ).catch(() => null)
         : questionImage;
-    const prompt = buildGeminiRequest(question, riotMatch, penta);
+    const prompt = buildGeminiRequest(question, riotMatch, penta, matchHistory, deadlockSummary);
 
     const answer = await askGemini({
       apiKey: env.GEMINI_API_KEY,
@@ -127,7 +173,9 @@ async function processOracle(interaction: DiscordInteraction, question: string, 
         image,
         model,
         match: riotMatch,
-        penta
+        penta,
+        matchHistory,
+        deadlockSummary
       })
     });
   } catch (error) {
