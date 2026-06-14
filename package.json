@@ -1,0 +1,33 @@
+{
+  "name": "oraculo-discord",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Bot gamer com IA para Discord, executado em Cloudflare Workers.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "npm run typecheck && npm test",
+    "register:command": "node scripts/register-command.mjs",
+    "delete:command": "node scripts/delete-command.mjs"
+  },
+  "dependencies": {
+    "discord-interactions": "^4.4.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260613.1",
+    "dotenv": "^16.6.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8",
+    "wrangler": "^4.100.0"
+  },
+  "overrides": {
+    "esbuild": "^0.28.1"
+  }
+}
