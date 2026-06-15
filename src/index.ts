@@ -5,6 +5,7 @@ import {
 } from "discord-interactions";
 import { findChampionImage } from "./datadragon";
 import {
+  buildConstitutionAnswer,
   buildDeadlockAnswer,
   buildHistoryAnswer,
   buildLatestMatchAnswer,
@@ -30,6 +31,7 @@ import type {
 } from "./types";
 import {
   detectBuildOrCurrentInfoIntent,
+  detectConstitutionViolation,
   detectHistoryIntent,
   detectPersonalStatsIntent,
   detectQueue,
@@ -89,6 +91,23 @@ async function processOracle(interaction: DiscordInteraction, question: string, 
   const geminiThinkingBudget = toInteger(env.GEMINI_THINKING_BUDGET, 0, 0, 24576);
 
   try {
+    const constitutionViolation = detectConstitutionViolation(question, env.ORACULO_CONSTITUTION);
+    if (constitutionViolation) {
+      await editOriginalInteractionResponse({
+        applicationId: env.DISCORD_APPLICATION_ID,
+        interactionToken: interaction.token,
+        payload: buildSuccessMessage({
+          question,
+          answer: buildConstitutionAnswer(constitutionViolation.term),
+          image: null,
+          thumbnailUrl: null,
+          model,
+          responseMaxChars
+        })
+      });
+      return;
+    }
+
     const riotIds = extractRiotIds(question);
     const apiKey = env.RIOT_API_KEY?.trim();
     const wantsPentakill = /\bpenta/.test(normalizeText(question));

@@ -138,6 +138,37 @@ export function escapeMarkdownLabel(value: string): string {
   return value.replace(/[\[\]]/g, "").trim();
 }
 
+export function detectConstitutionViolation(question: string, constitution?: string): { term: string } | null {
+  const text = constitution?.trim();
+  if (!text) {
+    return null;
+  }
+
+  const normalizedQuestion = normalizeText(question);
+  const questionTokens = new Set(
+    normalizedQuestion
+      .split(" ")
+      .filter((token) => token.length >= 4)
+      .filter((token) => !["como", "para", "pode", "posso", "jogar", "league", "legends"].includes(token))
+  );
+
+  const restrictedParts = text
+    .split(/[\n.;!?]+/)
+    .map((part) => normalizeText(part))
+    .filter((part) => /\b(proibid\w*|priobid\w*|banid\w*|vetad\w*)\b/.test(part));
+
+  for (const part of restrictedParts) {
+    const overlap = part
+      .split(" ")
+      .find((token) => questionTokens.has(token) && !/^(proibid|priobid|banid|vetad)/.test(token));
+    if (overlap) {
+      return { term: overlap };
+    }
+  }
+
+  return null;
+}
+
 // Detecta se a pergunta pede um resumo de histórico (melhor campeão, desempenho geral, etc.)
 export function detectLatestMatchIntent(question: string): boolean {
   const n = normalizeText(question);
@@ -152,7 +183,8 @@ export function detectAverageOrStyleIntent(question: string): boolean {
   return (
     /\b(media|medio|medias|medios|average|avg)\b/.test(n) ||
     /\b(cs m|cs min|cs minuto|cs por minuto|farm medio|farm por minuto)\b/.test(n) ||
-    /\b(estilo de jogo|como estou|como esta|como ta|como melhorar|melhorar meu|melhorar minha)\b/.test(n) ||
+    /\b(estilo de jogo|como estou|como esta|como ta|como melhorar|melhorar|melhorar meu|melhorar minha|jogatina|jogatinas)\b/.test(n) ||
+    /\b(o que posso fazer|o que eu posso fazer)\b/.test(n) ||
     /\b(desempenho geral|performance geral)\b/.test(n)
   );
 }

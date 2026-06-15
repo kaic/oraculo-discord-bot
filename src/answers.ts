@@ -89,6 +89,18 @@ export function buildLatestMatchAnswer(match: RiotMatchSummary): GeminiAnswer {
   );
 }
 
+export function buildConstitutionAnswer(term: string): GeminiAnswer {
+  return {
+    text:
+      `**Resumo direto: nao recomendo ${term}; a Constituicao do servidor veta isso.**\n` +
+      "- Melhor seguir a regra do servidor do que meta/build externa.\n" +
+      "- Se quiser jogar algo parecido, escolha outro campeao permitido.\n" +
+      "- Posso sugerir alternativas se voce disser a rota ou estilo.",
+    sources: [],
+    searchQueries: []
+  };
+}
+
 export function buildPentaAnswer(penta: RiotPentaResult): GeminiAnswer {
   if (!penta.found || !penta.match) {
     const queue = penta.queueLabel ? ` em ${penta.queueLabel}` : "";

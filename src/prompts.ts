@@ -1,30 +1,12 @@
 import type { DeadlockPlayerSummary, MatchHistorySummary, RiotMatchSummary, RiotPentaResult } from "./types";
 import { formatDuration, formatSaoPauloDate } from "./utils";
 
-function constitutionContext(question: string, constitution?: string): string {
+export function constitutionContext(constitution?: string): string {
   const text = constitution?.trim();
-  const normalizedQuestion = question
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-  const normalizedConstitution = text
-    ?.normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-  const questionTokens = normalizedQuestion
-    .split(/[^a-z0-9]+/)
-    .filter((token) => token.length >= 4);
-  const mentionsRules = /\b(constituicao|regra|regras|artigo)\b/.test(normalizedQuestion);
-  const overlapsConstitution = Boolean(
-    normalizedConstitution && questionTokens.some((token) => normalizedConstitution.includes(token))
-  );
-
-  if (text && (mentionsRules || overlapsConstitution)) {
-    return `\nRegras do grupo aplicaveis:\n${text.slice(0, 1200)}`;
-  }
-
   if (text) {
-    return "\nCultura do grupo: existe uma Constituicao interna; aplique apenas quando for relevante.";
+    return `\nConstituicao do servidor, com prioridade maxima sobre meta, build, estatistica e opiniao:
+${text.slice(0, 2000)}
+Se a pergunta conflitar com a Constituicao, responda seguindo a Constituicao e explique curto.`;
   }
 
   return "\nCultura do grupo: responda como bot gamer de servidor privado, sem citar regras internas nao configuradas.";
@@ -40,7 +22,7 @@ Nao crie secao "Fontes" nem invente URLs; a aplicacao anexa fontes reais.
 Prioridade de fontes: oficial > API/estatistica > sites especializados > Reddit como opiniao/comunidade.
 Para LoL, prefira Riot, Data Dragon, patch notes oficiais, OP.GG, U.GG, League of Graphs, Mobalytics, Lolalytics e Blitz.
 Para Deadlock, prefira fontes oficiais/Steam, deadlock-api e comunidades confiaveis.
-Nunca invente win rate, patch, item, resultado ou dado. Se faltar dado, diga curto.${constitutionContext(question, constitution)}`;
+Nunca invente win rate, patch, item, resultado ou dado. Se faltar dado, diga curto.${constitutionContext(constitution)}`;
 }
 
 function riotContext(match: RiotMatchSummary): string {

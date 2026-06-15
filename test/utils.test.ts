@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   detectBuildOrCurrentInfoIntent,
+  detectConstitutionViolation,
   detectHistoryIntent,
   detectPersonalStatsIntent,
   detectQueue,
@@ -13,7 +14,8 @@ import {
   truncate,
   uniqueSources
 } from "../src/utils";
-import { buildHistoryAnswer } from "../src/answers";
+import { buildConstitutionAnswer, buildHistoryAnswer } from "../src/answers";
+import { buildGeminiRequest } from "../src/prompts";
 import type { MatchHistorySummary } from "../src/types";
 
 describe("normalizeText", () => {
@@ -98,6 +100,7 @@ describe("intents", () => {
     expect(detectPersonalStatsIntent("como está meu cs/m no lol e como posso melhorar? UGA#0666")).toBe(true);
     expect(detectPersonalStatsIntent("qual meu farm medio? Kaic#BR1")).toBe(true);
     expect(detectPersonalStatsIntent("como está meu estilo de jogo em media? Kaic#BR1")).toBe(true);
+    expect(detectPersonalStatsIntent("o que eu posso fazer para melhorar nas minhas jogatinas de league of legends? gnomodeoculos#7253")).toBe(true);
   });
 
   it("mantem ultima partida fora do historico agregado", () => {
@@ -108,6 +111,14 @@ describe("intents", () => {
   it("detecta perguntas que precisam de contexto atual", () => {
     expect(detectBuildOrCurrentInfoIntent("build da Ahri mid")).toBe(true);
     expect(detectBuildOrCurrentInfoIntent("noticias do Deadlock")).toBe(true);
+  });
+
+  it("detecta conflito com a constituicao", () => {
+    const constitution = "Artigo 1: Corki e proibido no servidor.";
+
+    expect(detectConstitutionViolation("pode jogar de corki?", constitution)).toEqual({ term: "corki" });
+    expect(detectConstitutionViolation("pode jogar de corki?", "Corki e priobido.")).toEqual({ term: "corki" });
+    expect(detectConstitutionViolation("pode jogar de ahri?", constitution)).toBeNull();
   });
 });
 
@@ -257,5 +268,23 @@ describe("deterministic answers", () => {
     expect(answer.text).toContain("CS/min");
     expect(answer.text).toContain("Janela: 2 partidas");
     expect(answer.text).not.toContain("Ultima partida");
+  });
+
+  it("responde conflitos de constituicao sem fontes externas", () => {
+    const answer = buildConstitutionAnswer("corki");
+
+    expect(answer.text).toContain("Constituicao");
+    expect(answer.text).toContain("corki");
+    expect(answer.sources).toHaveLength(0);
+  });
+});
+
+describe("prompts", () => {
+  it("inclui a constituicao em qualquer pergunta ao Gemini", () => {
+    const prompt = buildGeminiRequest("pode jogar de corki?", null, null, null, null, "Corki e proibido.");
+
+    expect(prompt.systemInstruction).toContain("Constituicao do servidor");
+    expect(prompt.systemInstruction).toContain("Corki e proibido.");
+    expect(prompt.systemInstruction).toContain("prioridade maxima");
   });
 });
