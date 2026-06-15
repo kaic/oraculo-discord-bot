@@ -5,6 +5,12 @@ import {
 } from "discord-interactions";
 import { findChampionImage } from "./datadragon";
 import {
+  buildDeadlockAnswer,
+  buildHistoryAnswer,
+  buildLatestMatchAnswer,
+  buildPentaAnswer
+} from "./answers";
+import {
   buildErrorMessage,
   buildSuccessMessage,
   editOriginalInteractionResponse
@@ -13,6 +19,7 @@ import { askGemini } from "./gemini";
 import { buildGeminiRequest } from "./prompts";
 import { getDeadlockPlayerSummary } from "./deadlock";
 import { getLastPentakill, getLatestLolMatch, getMatchHistorySummary } from "./riot";
+import { inferFallbackImageUrl } from "./visuals";
 import type {
   DeadlockPlayerSummary,
   DiscordInteraction,
@@ -22,13 +29,16 @@ import type {
   RiotPentaResult
 } from "./types";
 import {
+  detectBuildOrCurrentInfoIntent,
   detectHistoryIntent,
+  detectPersonalStatsIntent,
   detectQueue,
   extractRiotIds,
   extractSteamId,
   isAllowedGuild,
   normalizeText,
   toBoolean,
+  toInteger,
   truncate
 } from "./utils";
 
@@ -72,11 +82,17 @@ function getQuestion(interaction: DiscordInteraction): string | null {
 
 async function processOracle(interaction: DiscordInteraction, question: string, env: Env): Promise<void> {
   const model = env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
+  const responseMaxChars = toInteger(env.ORACLE_RESPONSE_MAX_CHARS, 750, 250, 3900);
+  const historyMatchCount = toInteger(env.RIOT_HISTORY_MATCH_COUNT, 40, 5, 80);
+  const geminiMaxOutputTokens = toInteger(env.GEMINI_MAX_OUTPUT_TOKENS, 900, 128, 4096);
+  const geminiThinkingBudget = toInteger(env.GEMINI_THINKING_BUDGET, 0, 0, 24576);
 
   try {
     const riotIds = extractRiotIds(question);
     const apiKey = env.RIOT_API_KEY?.trim();
     const wantsPentakill = /\bpenta/.test(normalizeText(question));
+    const wantsPersonalStats = riotIds.length > 0 && detectPersonalStatsIntent(question);
+    const shouldUseGeminiForCurrentInfo = detectBuildOrCurrentInfoIntent(question);
 
     const questionImagePromise = withTimeout(
       findChampionImage(question),
@@ -91,7 +107,7 @@ async function processOracle(interaction: DiscordInteraction, question: string, 
 
     const steamId = extractSteamId(question);
     const isDeadlockQuestion = /deadlock/i.test(question);
-    const wantsHistory = riotIds.length > 0 && detectHistoryIntent(question);
+    const wantsHistory = riotIds.length > 0 && (detectHistoryIntent(question) || wantsPersonalStats);
 
     if (steamId && isDeadlockQuestion) {
       deadlockSummary = await withTimeout(
@@ -120,7 +136,7 @@ async function processOracle(interaction: DiscordInteraction, question: string, 
         }
       } else if (wantsHistory) {
         matchHistory = await withTimeout(
-          getMatchHistorySummary(riotIds, apiKey, region, 20, queue?.ids),
+          getMatchHistorySummary(riotIds, apiKey, region, historyMatchCount, queue?.ids),
           15000,
           "Tempo excedido ao buscar histórico de partidas da Riot."
         ).catch((error) => {
@@ -143,8 +159,8 @@ async function processOracle(interaction: DiscordInteraction, question: string, 
     }
 
     const questionImage = await questionImagePromise;
-    // Para histórico ou Deadlock não há um único campeão para imagem; usa apenas a do texto da pergunta.
-    const matchForImage = matchHistory || deadlockSummary ? null : (penta?.match ?? riotMatch);
+    const historyChampion = matchHistory?.highlights.bestKda?.championName ?? matchHistory?.champions[0]?.championName;
+    const matchForImage = deadlockSummary ? null : (penta?.match ?? riotMatch);
     const image =
       matchForImage && !questionImage
         ? await withTimeout(
@@ -152,17 +168,47 @@ async function processOracle(interaction: DiscordInteraction, question: string, 
             3000,
             "Tempo excedido ao consultar imagem da partida."
           ).catch(() => null)
-        : questionImage;
-    const prompt = buildGeminiRequest(question, riotMatch, penta, matchHistory, deadlockSummary);
+        : questionImage ??
+          (historyChampion
+            ? await withTimeout(
+                findChampionImage(historyChampion),
+                3000,
+                "Tempo excedido ao consultar imagem do historico."
+              ).catch(() => null)
+            : null);
 
-    const answer = await askGemini({
-      apiKey: env.GEMINI_API_KEY,
-      model,
-      systemInstruction: prompt.systemInstruction,
-      prompt: prompt.userPrompt,
-      enableGoogleSearch: toBoolean(env.ENABLE_GOOGLE_SEARCH, true),
-      timeoutMs: 18000
-    });
+    const deterministicAnswer =
+      penta && !shouldUseGeminiForCurrentInfo
+        ? buildPentaAnswer(penta)
+        : matchHistory && !shouldUseGeminiForCurrentInfo
+          ? buildHistoryAnswer(question, matchHistory)
+          : riotMatch && !shouldUseGeminiForCurrentInfo
+            ? buildLatestMatchAnswer(riotMatch)
+            : deadlockSummary && !shouldUseGeminiForCurrentInfo
+              ? buildDeadlockAnswer(deadlockSummary)
+              : null;
+
+    const answer = deterministicAnswer ?? (await (async () => {
+      const prompt = buildGeminiRequest(
+        question,
+        riotMatch,
+        penta,
+        matchHistory,
+        deadlockSummary,
+        env.ORACULO_CONSTITUTION
+      );
+
+      return askGemini({
+        apiKey: env.GEMINI_API_KEY,
+        model,
+        systemInstruction: prompt.systemInstruction,
+        prompt: prompt.userPrompt,
+        enableGoogleSearch: toBoolean(env.ENABLE_GOOGLE_SEARCH, true),
+        maxOutputTokens: geminiMaxOutputTokens,
+        thinkingBudget: geminiThinkingBudget,
+        timeoutMs: 14000
+      });
+    })());
 
     await editOriginalInteractionResponse({
       applicationId: env.DISCORD_APPLICATION_ID,
@@ -171,7 +217,9 @@ async function processOracle(interaction: DiscordInteraction, question: string, 
         question,
         answer,
         image,
+        thumbnailUrl: inferFallbackImageUrl(question, deadlockSummary),
         model,
+        responseMaxChars,
         match: riotMatch,
         penta,
         matchHistory,

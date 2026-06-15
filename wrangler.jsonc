@@ -8,8 +8,12 @@
   },
   "vars": {
     "GEMINI_MODEL": "gemini-2.5-flash",
+    "GEMINI_MAX_OUTPUT_TOKENS": "900",
+    "GEMINI_THINKING_BUDGET": "0",
     "ENABLE_GOOGLE_SEARCH": "true",
     "RIOT_ROUTING_REGION": "americas",
+    "RIOT_HISTORY_MATCH_COUNT": "40",
+    "ORACLE_RESPONSE_MAX_CHARS": "750",
     "ENVIRONMENT": "production"
   }
 }

@@ -5,7 +5,10 @@ dotenv.config({ path: ".dev.vars", override: false });
 
 const applicationId = process.env.DISCORD_APPLICATION_ID?.trim();
 const botToken = process.env.DISCORD_BOT_TOKEN?.trim();
-const guildId = process.env.DISCORD_GUILD_ID?.trim();
+const guildIds = `${process.env.DISCORD_GUILD_ID ?? ""},${process.env.DISCORD_GUILD_IDS ?? ""}`
+  .split(",")
+  .map((id) => id.trim())
+  .filter(Boolean);
 
 if (!applicationId || !botToken) {
   console.error("Defina DISCORD_APPLICATION_ID e DISCORD_BOT_TOKEN em .dev.vars ou no ambiente.");
@@ -29,28 +32,38 @@ const command = {
   ]
 };
 
-const endpoint = guildId
-  ? `https://discord.com/api/v10/applications/${applicationId}/guilds/${guildId}/commands`
-  : `https://discord.com/api/v10/applications/${applicationId}/commands`;
+async function registerCommand(guildId) {
+  const endpoint = guildId
+    ? `https://discord.com/api/v10/applications/${applicationId}/guilds/${guildId}/commands`
+    : `https://discord.com/api/v10/applications/${applicationId}/commands`;
 
-const response = await fetch(endpoint, {
-  method: "POST",
-  headers: {
-    Authorization: `Bot ${botToken}`,
-    "Content-Type": "application/json"
-  },
-  body: JSON.stringify(command)
-});
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      Authorization: `Bot ${botToken}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(command)
+  });
 
-const payload = await response.json();
-if (!response.ok) {
-  console.error("Falha ao registrar comando:", JSON.stringify(payload, null, 2));
-  process.exit(1);
+  const payload = await response.json();
+  if (!response.ok) {
+    console.error("Falha ao registrar comando:", JSON.stringify(payload, null, 2));
+    process.exit(1);
+  }
+
+  console.log(
+    guildId
+      ? `Comando /oraculo registrado imediatamente no servidor ${guildId}.`
+      : "Comando /oraculo registrado globalmente. A propagação pode levar algum tempo."
+  );
+  console.log(JSON.stringify(payload, null, 2));
 }
 
-console.log(
-  guildId
-    ? `Comando /oraculo registrado imediatamente no servidor ${guildId}.`
-    : "Comando /oraculo registrado globalmente. A propagação pode levar algum tempo."
-);
-console.log(JSON.stringify(payload, null, 2));
+if (guildIds.length === 0) {
+  await registerCommand(null);
+} else {
+  for (const guildId of guildIds) {
+    await registerCommand(guildId);
+  }
+}

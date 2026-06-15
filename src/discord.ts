@@ -157,14 +157,16 @@ export function buildSuccessMessage(params: {
   question: string;
   answer: GeminiAnswer;
   image?: ChampionImage | null;
+  thumbnailUrl?: string | null;
   model: string;
+  responseMaxChars: number;
   match?: RiotMatchSummary | null;
   penta?: RiotPentaResult | null;
   matchHistory?: MatchHistorySummary | null;
   deadlockSummary?: DeadlockPlayerSummary | null;
 }): DiscordMessagePayload {
   const sourceText = sourcesMarkdown(params.answer.sources);
-  const description = truncate(params.answer.text, 3900);
+  const description = truncate(params.answer.text, params.responseMaxChars);
   const fields: EmbedField[] = [];
 
   // Estatísticas do jogador em destaque (grid), antes do texto-fonte.
@@ -215,6 +217,8 @@ export function buildSuccessMessage(params: {
   }
   if (params.image) {
     embed.thumbnail = { url: params.image.url };
+  } else if (params.thumbnailUrl) {
+    embed.thumbnail = { url: params.thumbnailUrl };
   }
 
   return {
@@ -225,11 +229,24 @@ export function buildSuccessMessage(params: {
 
 export function buildErrorMessage(error: unknown): DiscordMessagePayload {
   const rawMessage = error instanceof Error ? error.message : "Erro desconhecido";
+  const normalized = rawMessage.toLowerCase();
+  const isQuota =
+    normalized.includes("quota") ||
+    normalized.includes("rate") ||
+    normalized.includes("429") ||
+    normalized.includes("resource_exhausted");
+  const isTimeout = normalized.includes("timeout") || normalized.includes("demorou") || normalized.includes("tempo excedido");
+  const message = isQuota
+    ? "**A API bateu limite agora.**\n- Tenta de novo em alguns minutos.\n- Perguntas com Riot ID podem responder sem IA se forem sobre historico/stats."
+    : isTimeout
+      ? "**A consulta demorou demais.**\n- Tenta uma pergunta mais especifica.\n- Builds/noticias com busca web tendem a demorar mais."
+      : `${truncate(rawMessage, 500)}\n\nTente novamente com uma pergunta mais especifica.`;
+
   return {
     embeds: [
       {
         title: "🔮 O Oráculo falhou ao consultar as fontes",
-        description: `${truncate(rawMessage, 1200)}\n\nTente novamente com uma pergunta mais específica.`,
+        description: message,
         color: 0xdc2626,
         timestamp: new Date().toISOString()
       }

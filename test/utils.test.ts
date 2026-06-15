@@ -1,13 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
+  detectBuildOrCurrentInfoIntent,
+  detectPersonalStatsIntent,
   detectQueue,
   extractRiotIds,
   formatDuration,
   isAllowedGuild,
   normalizeText,
+  toInteger,
   truncate,
   uniqueSources
 } from "../src/utils";
+import { buildHistoryAnswer } from "../src/answers";
+import type { MatchHistorySummary } from "../src/types";
 
 describe("normalizeText", () => {
   it("normaliza acentos, caixa e pontuação", () => {
@@ -70,5 +75,109 @@ describe("helpers", () => {
         { title: "B", uri: "https://b.test" }
       ])
     ).toHaveLength(2);
+  });
+
+  it("le inteiro de env com limites", () => {
+    expect(toInteger("40", 20, 5, 80)).toBe(40);
+    expect(toInteger("999", 20, 5, 80)).toBe(80);
+    expect(toInteger("x", 20, 5, 80)).toBe(20);
+  });
+});
+
+describe("intents", () => {
+  it("detecta perguntas de stats pessoais", () => {
+    expect(detectPersonalStatsIntent("quais sao meus melhores campeoes no lol ranked? Kaic#BR1")).toBe(true);
+    expect(detectPersonalStatsIntent("qual meu melhor kda? Kaic#BR1")).toBe(true);
+  });
+
+  it("detecta perguntas que precisam de contexto atual", () => {
+    expect(detectBuildOrCurrentInfoIntent("build da Ahri mid")).toBe(true);
+    expect(detectBuildOrCurrentInfoIntent("noticias do Deadlock")).toBe(true);
+  });
+});
+
+describe("deterministic answers", () => {
+  it("resume historico sem Gemini", () => {
+    const summary: MatchHistorySummary = {
+      riotId: "Kaic#BR1",
+      totalGames: 3,
+      champions: [
+        {
+          championName: "Ahri",
+          games: 2,
+          wins: 2,
+          kills: 18,
+          deaths: 6,
+          assists: 20,
+          cs: 430,
+          visionScore: 35
+        },
+        {
+          championName: "Syndra",
+          games: 1,
+          wins: 0,
+          kills: 9,
+          deaths: 2,
+          assists: 4,
+          cs: 210,
+          visionScore: 12
+        }
+      ],
+      games: [
+        {
+          championName: "Ahri",
+          win: true,
+          kills: 8,
+          deaths: 3,
+          assists: 12,
+          cs: 220,
+          visionScore: 20,
+          gameDurationSeconds: 1800,
+          gameMode: "CLASSIC",
+          queueId: 420
+        },
+        {
+          championName: "Syndra",
+          win: false,
+          kills: 9,
+          deaths: 2,
+          assists: 4,
+          cs: 210,
+          visionScore: 12,
+          gameDurationSeconds: 1500,
+          gameMode: "CLASSIC",
+          queueId: 420
+        }
+      ],
+      highlights: {
+        bestKda: {
+          championName: "Syndra",
+          win: false,
+          kills: 9,
+          deaths: 2,
+          assists: 4,
+          cs: 210,
+          visionScore: 12,
+          gameDurationSeconds: 1500,
+          gameMode: "CLASSIC",
+          queueId: 420
+        },
+        bestWinrateChampion: {
+          championName: "Ahri",
+          games: 2,
+          wins: 2,
+          kills: 18,
+          deaths: 6,
+          assists: 20,
+          cs: 430,
+          visionScore: 35
+        }
+      }
+    };
+
+    const answer = buildHistoryAnswer("quais meus melhores campeoes?", summary);
+    expect(answer.text).toContain("Ahri");
+    expect(answer.text.length).toBeLessThanOrEqual(750);
+    expect(answer.sources[0]?.title).toBe("Riot Games API");
   });
 });

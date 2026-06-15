@@ -213,7 +213,10 @@ GEMINI_API_KEY
 O modelo padrão está em `wrangler.jsonc`:
 
 ```json
-"GEMINI_MODEL": "gemini-2.5-flash"
+"GEMINI_MODEL": "gemini-2.5-flash",
+"GEMINI_MAX_OUTPUT_TOKENS": "900",
+"GEMINI_THINKING_BUDGET": "0",
+"ORACLE_RESPONSE_MAX_CHARS": "750"
 ```
 
 Também está habilitado:
@@ -223,6 +226,7 @@ Também está habilitado:
 ```
 
 Isso permite responder sobre patches, builds, notícias e resultados atuais, retornando fontes.
+Perguntas de estatísticas pessoais com Riot ID usam a Riot API primeiro e evitam Gemini quando possível.
 
 ---
 
@@ -247,7 +251,8 @@ A chave de desenvolvimento expira a cada 24 horas. Para um bot de comunidade pri
 O MVP está configurado para contas do Brasil e Américas:
 
 ```json
-"RIOT_ROUTING_REGION": "americas"
+"RIOT_ROUTING_REGION": "americas",
+"RIOT_HISTORY_MATCH_COUNT": "40"
 ```
 
 O parser reconhece Riot IDs simples no formato:
@@ -256,9 +261,23 @@ O parser reconhece Riot IDs simples no formato:
 Nome#TAG
 ```
 
+Perguntas como melhores campeões, melhores partidas, melhor KDA, maior farm e histórico ranqueado usam essa janela padrão de 40 partidas.
+
 ---
 
-# 6. Criar a conta e o token da Cloudflare
+# 6. Salvar a Constituição do grupo
+
+A Constituição completa deve ficar como secret, não no repositório:
+
+```bash
+npx wrangler secret put ORACULO_CONSTITUTION
+```
+
+Cole o texto completo quando o Wrangler pedir. Em desenvolvimento local, use `ORACULO_CONSTITUTION=` no `.dev.vars`.
+
+---
+
+# 7. Criar a conta e o token da Cloudflare
 
 ## 6.1 Account ID
 
@@ -288,7 +307,7 @@ CLOUDFLARE_API_TOKEN
 
 ---
 
-# 7. Criar o repositório no GitHub
+# 8. Criar o repositório no GitHub
 
 Crie um repositório vazio chamado, por exemplo:
 
@@ -313,7 +332,7 @@ Troque `SEU_USUARIO` pelo seu usuário no GitHub.
 
 ---
 
-# 8. Configurar secrets no GitHub
+# 9. Configurar secrets no GitHub
 
 No repositório:
 
@@ -329,7 +348,7 @@ No repositório:
 | `DISCORD_APPLICATION_ID` | General Information do Discord |
 | `DISCORD_PUBLIC_KEY` | General Information do Discord |
 | `DISCORD_BOT_TOKEN` | Seção Bot do Discord |
-| `DISCORD_GUILD_ID` | ID do servidor Discord |
+| `DISCORD_GUILD_ID` | ID do servidor Discord principal |
 | `GEMINI_API_KEY` | Google AI Studio |
 | `RIOT_API_KEY` | Riot Developer Portal |
 
@@ -337,7 +356,7 @@ O `RIOT_API_KEY` é opcional no código, mas o workflow incluído espera que o s
 
 ---
 
-# 9. Executar o deploy automático
+# 10. Executar o deploy automático
 
 O arquivo já incluído é:
 
@@ -378,7 +397,7 @@ Depois, volte ao GitHub Actions e execute o workflow novamente. Os próximos dep
 
 ---
 
-# 10. Configurar o Interactions Endpoint no Discord
+# 11. Configurar o Interactions Endpoint no Discord
 
 Depois que o Worker estiver publicado:
 
@@ -397,7 +416,7 @@ O Discord enviará um PING assinado ao endpoint. Se os secrets estiverem correto
 
 ---
 
-# 11. Testar no servidor
+# 12. Testar no servidor
 
 No Discord, escreva:
 
@@ -427,7 +446,7 @@ Teste também:
 
 ---
 
-# 12. Health check e logs
+# 13. Health check e logs
 
 Abra no navegador:
 
@@ -458,7 +477,7 @@ Ou use **Cloudflare Dashboard → Workers & Pages → oraculo-discord → Logs**
 
 ---
 
-# 13. Desenvolvimento local
+# 14. Desenvolvimento local
 
 Preencha `.dev.vars`:
 
@@ -488,7 +507,7 @@ Para testar interactions do Discord localmente, você precisaria expor o Worker 
 
 ---
 
-# 14. Registrar o comando manualmente
+# 15. Registrar o comando manualmente
 
 O GitHub Action já faz isso, mas você também pode registrar localmente:
 
@@ -498,11 +517,11 @@ npm run register:command
 
 O script lê `.dev.vars`.
 
-Com `DISCORD_GUILD_ID` preenchido, cria um **guild command**, que aparece imediatamente no servidor. Sem esse valor, cria um comando global.
+Com `DISCORD_GUILD_ID` preenchido, cria um **guild command**, que aparece imediatamente no servidor. O valor também aceita IDs separados por vírgula para registrar em mais de um servidor. Sem esse valor, cria um comando global.
 
 ---
 
-# 15. Atualizações futuras
+# 16. Atualizações futuras
 
 Depois da configuração inicial, o fluxo normal é apenas:
 
@@ -521,7 +540,7 @@ O GitHub Actions:
 
 ---
 
-# 16. Configurações úteis
+# 17. Configurações úteis
 
 Edite `wrangler.jsonc` para alterar variáveis não sensíveis:
 
@@ -529,8 +548,12 @@ Edite `wrangler.jsonc` para alterar variáveis não sensíveis:
 {
   "vars": {
     "GEMINI_MODEL": "gemini-2.5-flash",
+    "GEMINI_MAX_OUTPUT_TOKENS": "900",
+    "GEMINI_THINKING_BUDGET": "0",
     "ENABLE_GOOGLE_SEARCH": "true",
     "RIOT_ROUTING_REGION": "americas",
+    "RIOT_HISTORY_MATCH_COUNT": "40",
+    "ORACLE_RESPONSE_MAX_CHARS": "750",
     "ENVIRONMENT": "production"
   }
 }
@@ -540,7 +563,7 @@ Não coloque chaves ou tokens nesse arquivo.
 
 ---
 
-# 17. Troubleshooting
+# 18. Troubleshooting
 
 ## O Discord mostra “This interaction failed”
 
@@ -607,20 +630,20 @@ O MVP não gera imagens por IA. Ele adiciona uma imagem quando consegue identifi
 
 ---
 
-# 18. Segurança
+# 19. Segurança
 
 - Nunca faça commit de `.dev.vars`.
 - Nunca exponha o bot token.
 - Use GitHub Actions Secrets.
 - Restrinja o Cloudflare API Token somente à sua conta.
 - O Worker valida a assinatura Ed25519 de todas as interactions.
-- `ALLOWED_GUILD_IDS` é preenchido com o seu `DISCORD_GUILD_ID` durante o deploy.
+- `ALLOWED_GUILD_IDS` é preenchido com o `DISCORD_GUILD_ID` e os servidores extras definidos no workflow durante o deploy.
 - Mentions são desabilitadas nas respostas para evitar `@everyone` e `@here` gerados pelo modelo.
 - No free tier do Gemini, não envie conteúdo privado ou sensível do servidor.
 
 ---
 
-# 19. Estrutura do projeto
+# 20. Estrutura do projeto
 
 ```text
 .
@@ -654,8 +677,8 @@ O MVP não gera imagens por IA. Ele adiciona uma imagem quando consegue identifi
 - Resultados exatos de contas de LoL dependem da Riot API.
 - A integração da Riot está preparada para a região `americas`.
 - O parser de Riot ID prioriza nomes sem espaço.
-- A imagem automática está implementada inicialmente para campeões de LoL.
-- A resposta do Gemini é truncada para caber nos limites de embed do Discord.
+- A imagem automática usa Data Dragon para campeões de LoL e fallback barato por domínio quando disponível.
+- A resposta do Gemini é truncada pelo limite `ORACLE_RESPONSE_MAX_CHARS`.
 - Cotas gratuitas e preços das plataformas podem mudar.
 
 ---

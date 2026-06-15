@@ -4,9 +4,14 @@ export interface Env {
   GEMINI_API_KEY: string;
   RIOT_API_KEY?: string;
   GEMINI_MODEL?: string;
+  GEMINI_MAX_OUTPUT_TOKENS?: string;
+  GEMINI_THINKING_BUDGET?: string;
   ENABLE_GOOGLE_SEARCH?: string;
   ALLOWED_GUILD_IDS?: string;
   RIOT_ROUTING_REGION?: string;
+  RIOT_HISTORY_MATCH_COUNT?: string;
+  ORACLE_RESPONSE_MAX_CHARS?: string;
+  ORACULO_CONSTITUTION?: string;
   ENVIRONMENT?: string;
 }
 
@@ -94,10 +99,34 @@ export interface ChampionHistoryStat {
   visionScore: number;
 }
 
+export interface MatchHistoryGame {
+  championName: string;
+  win: boolean;
+  kills: number;
+  deaths: number;
+  assists: number;
+  cs: number;
+  visionScore: number;
+  gameDurationSeconds: number;
+  gameMode: string;
+  queueId: number;
+  endedAtIso?: string;
+}
+
+export interface MatchHistoryHighlights {
+  bestKda?: MatchHistoryGame;
+  mostKills?: MatchHistoryGame;
+  bestCsPerMinute?: MatchHistoryGame;
+  bestVision?: MatchHistoryGame;
+  bestWinrateChampion?: ChampionHistoryStat;
+}
+
 export interface MatchHistorySummary {
   riotId: string;
   totalGames: number;
   champions: ChampionHistoryStat[];
+  games: MatchHistoryGame[];
+  highlights: MatchHistoryHighlights;
   queueLabel?: string;
 }
 

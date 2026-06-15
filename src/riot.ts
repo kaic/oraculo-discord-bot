@@ -1,4 +1,12 @@
-import type { ChampionHistoryStat, MatchHistorySummary, RiotId, RiotMatchSummary, RiotPentaResult } from "./types";
+import type {
+  ChampionHistoryStat,
+  MatchHistoryGame,
+  MatchHistoryHighlights,
+  MatchHistorySummary,
+  RiotId,
+  RiotMatchSummary,
+  RiotPentaResult
+} from "./types";
 
 interface RiotAccount {
   puuid: string;
@@ -182,6 +190,50 @@ function summarize(
   };
 }
 
+function summarizeHistoryGame(match: RiotMatch, participant: RiotParticipant): MatchHistoryGame {
+  return {
+    championName: participant.championName,
+    win: participant.win,
+    kills: participant.kills ?? 0,
+    deaths: participant.deaths ?? 0,
+    assists: participant.assists ?? 0,
+    cs: (participant.totalMinionsKilled ?? 0) + (participant.neutralMinionsKilled ?? 0),
+    visionScore: participant.visionScore ?? 0,
+    gameDurationSeconds: match.info.gameDuration ?? 0,
+    gameMode: match.info.gameMode ?? "UNKNOWN",
+    queueId: match.info.queueId ?? 0,
+    ...(match.info.gameEndTimestamp
+      ? { endedAtIso: new Date(match.info.gameEndTimestamp).toISOString() }
+      : {})
+  };
+}
+
+function kdaScore(game: MatchHistoryGame): number {
+  return (game.kills + game.assists) / Math.max(1, game.deaths);
+}
+
+function csPerMinute(game: MatchHistoryGame): number {
+  return game.gameDurationSeconds > 0 ? game.cs / (game.gameDurationSeconds / 60) : 0;
+}
+
+function buildHighlights(champions: ChampionHistoryStat[], games: MatchHistoryGame[]): MatchHistoryHighlights {
+  const bestKda = [...games].sort((a, b) => kdaScore(b) - kdaScore(a))[0];
+  const mostKills = [...games].sort((a, b) => b.kills - a.kills)[0];
+  const bestCsPerMinute = [...games].sort((a, b) => csPerMinute(b) - csPerMinute(a))[0];
+  const bestVision = [...games].sort((a, b) => b.visionScore - a.visionScore)[0];
+  const bestWinrateChampion = champions
+    .filter((champion) => champion.games >= 2)
+    .sort((a, b) => b.wins / b.games - a.wins / a.games || b.games - a.games)[0];
+
+  return {
+    ...(bestKda ? { bestKda } : {}),
+    ...(mostKills ? { mostKills } : {}),
+    ...(bestCsPerMinute ? { bestCsPerMinute } : {}),
+    ...(bestVision ? { bestVision } : {}),
+    ...(bestWinrateChampion ? { bestWinrateChampion } : {})
+  };
+}
+
 export async function getLatestLolMatch(
   candidates: RiotId[],
   apiKey: string,
@@ -236,6 +288,7 @@ export async function getMatchHistorySummary(
   }
 
   const champMap = new Map<string, ChampionHistoryStat>();
+  const games: MatchHistoryGame[] = [];
   const concurrency = 10;
 
   for (let i = 0; i < matchIds.length; i += concurrency) {
@@ -248,6 +301,8 @@ export async function getMatchHistorySummary(
 
       const participant = match.info.participants.find((p) => p.puuid === account.puuid);
       if (!participant) continue;
+
+      games.push(summarizeHistoryGame(match, participant));
 
       const name = participant.championName;
       const existing: ChampionHistoryStat = champMap.get(name) ?? {
@@ -276,7 +331,13 @@ export async function getMatchHistorySummary(
   const champions = Array.from(champMap.values()).sort((a, b) => b.games - a.games);
   const riotIdStr = `${account.gameName ?? riotId.gameName}#${account.tagLine ?? riotId.tagLine}`;
 
-  return { riotId: riotIdStr, totalGames: champions.reduce((s, c) => s + c.games, 0), champions };
+  return {
+    riotId: riotIdStr,
+    totalGames: games.length,
+    champions,
+    games,
+    highlights: buildHighlights(champions, games)
+  };
 }
 
 export async function getLastPentakill(

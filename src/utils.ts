@@ -73,6 +73,19 @@ export function toBoolean(value: string | undefined, fallback: boolean): boolean
   return ["1", "true", "yes", "sim", "on"].includes(value.trim().toLowerCase());
 }
 
+export function toInteger(value: string | undefined, fallback: number, min: number, max: number): number {
+  if (value === undefined || value.trim() === "") {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+
+  return Math.min(max, Math.max(min, parsed));
+}
+
 export function truncate(value: string, maxLength: number): string {
   if (value.length <= maxLength) {
     return value;
@@ -136,6 +149,25 @@ export function detectHistoryIntent(question: string): boolean {
     n.includes("mais vitorias") ||
     n.includes("mais wins")
   );
+}
+
+export function detectPersonalStatsIntent(question: string): boolean {
+  const n = normalizeText(question);
+  return (
+    detectHistoryIntent(question) ||
+    /\b(melhor|melhores|maior|maiores|top)\b/.test(n) &&
+      /\b(campeao|campeoes|champ|champs|partida|partidas|kda|kills|cs|farm|visao|vision|player|players)\b/.test(n)
+  );
+}
+
+export function detectBestMatchIntent(question: string): boolean {
+  const n = normalizeText(question);
+  return /\b(partida|partidas|game|games|kda|kills|cs|farm|visao|vision)\b/.test(n);
+}
+
+export function detectBuildOrCurrentInfoIntent(question: string): boolean {
+  const n = normalizeText(question);
+  return /\b(build|item|itens|runa|runas|patch|nota|notas|noticia|noticias|tier|meta|pick|picks|counter|matchup|pro|pros|dica|dicas|reddit)\b/.test(n);
 }
 
 // Extrai Steam ID64 de texto livre (para busca de histórico no Deadlock).

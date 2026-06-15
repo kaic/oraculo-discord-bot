@@ -41,6 +41,8 @@ export async function askGemini(params: {
   systemInstruction: string;
   prompt: string;
   enableGoogleSearch: boolean;
+  maxOutputTokens: number;
+  thinkingBudget: number;
   timeoutMs?: number;
 }): Promise<GeminiAnswer> {
   const controller = new AbortController();
@@ -60,9 +62,10 @@ export async function askGemini(params: {
       generationConfig: {
         temperature: 0.4,
         topP: 0.9,
-        // Folga alta: o gemini-2.5-flash gasta parte do orçamento com "thinking",
-        // então um teto baixo cortava a resposta no meio.
-        maxOutputTokens: 6144
+        maxOutputTokens: params.maxOutputTokens,
+        thinkingConfig: {
+          thinkingBudget: params.thinkingBudget
+        }
       },
       store: false
     };

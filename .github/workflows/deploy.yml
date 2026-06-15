@@ -1,5 +1,8 @@
 name: CI e deploy do Oráculo
 
+env:
+  EXTRA_DISCORD_GUILD_IDS: "1515935753551478784"
+
 on:
   pull_request:
   push:
@@ -65,13 +68,13 @@ jobs:
           DISCORD_APPLICATION_ID: ${{ secrets.DISCORD_APPLICATION_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           RIOT_API_KEY: ${{ secrets.RIOT_API_KEY }}
-          ALLOWED_GUILD_IDS: ${{ secrets.DISCORD_GUILD_ID }}
+          ALLOWED_GUILD_IDS: ${{ secrets.DISCORD_GUILD_ID }},${{ env.EXTRA_DISCORD_GUILD_IDS }}
 
       - name: Registrar ou atualizar /oraculo no servidor
         env:
           DISCORD_APPLICATION_ID: ${{ secrets.DISCORD_APPLICATION_ID }}
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
-          DISCORD_GUILD_ID: ${{ secrets.DISCORD_GUILD_ID }}
+          DISCORD_GUILD_ID: ${{ secrets.DISCORD_GUILD_ID }},${{ env.EXTRA_DISCORD_GUILD_IDS }}
         run: npm run register:command
 
       - name: Mostrar URL implantada
