@@ -135,10 +135,33 @@ export function escapeMarkdownLabel(value: string): string {
 }
 
 // Detecta se a pergunta pede um resumo de histórico (melhor campeão, desempenho geral, etc.)
+export function detectLatestMatchIntent(question: string): boolean {
+  const n = normalizeText(question);
+  return (
+    /\b(ultima|ultimo|mais recente|recente)\b/.test(n) &&
+    /\b(partida|jogo|game|match)\b/.test(n)
+  );
+}
+
+export function detectAverageOrStyleIntent(question: string): boolean {
+  const n = normalizeText(question);
+  return (
+    /\b(media|medio|medias|medios|average|avg)\b/.test(n) ||
+    /\b(cs m|cs min|cs minuto|cs por minuto|farm medio|farm por minuto)\b/.test(n) ||
+    /\b(estilo de jogo|como estou|como esta|como ta|como melhorar|melhorar meu|melhorar minha)\b/.test(n) ||
+    /\b(desempenho geral|performance geral)\b/.test(n)
+  );
+}
+
 export function detectHistoryIntent(question: string): boolean {
+  if (detectLatestMatchIntent(question)) {
+    return false;
+  }
+
   const n = normalizeText(question);
   return (
     /\b(historico|desempenho|estatisticas|winrate|performance)\b/.test(n) ||
+    detectAverageOrStyleIntent(question) ||
     n.includes("jogo melhor") ||
     n.includes("melhor de que") ||
     n.includes("melhor campeao") ||
@@ -152,6 +175,10 @@ export function detectHistoryIntent(question: string): boolean {
 }
 
 export function detectPersonalStatsIntent(question: string): boolean {
+  if (detectLatestMatchIntent(question)) {
+    return false;
+  }
+
   const n = normalizeText(question);
   return (
     detectHistoryIntent(question) ||

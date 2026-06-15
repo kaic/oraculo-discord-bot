@@ -6,7 +6,7 @@ import type {
   RiotMatchSummary,
   RiotPentaResult
 } from "./types";
-import { detectBestMatchIntent, truncate } from "./utils";
+import { detectAverageOrStyleIntent, detectBestMatchIntent, truncate } from "./utils";
 
 const RIOT_API_SOURCE = {
   title: "Riot Games API",
@@ -42,6 +42,29 @@ function csPerMinute(game: MatchHistoryGame): string {
     return "0.0";
   }
   return (game.cs / (game.gameDurationSeconds / 60)).toFixed(1);
+}
+
+function average(values: number[]): number {
+  if (values.length === 0) {
+    return 0;
+  }
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function averageCsPerMinute(games: MatchHistoryGame[]): number {
+  const totals = games.reduce(
+    (acc, game) => ({
+      cs: acc.cs + game.cs,
+      seconds: acc.seconds + Math.max(0, game.gameDurationSeconds)
+    }),
+    { cs: 0, seconds: 0 }
+  );
+
+  if (totals.seconds <= 0) {
+    return 0;
+  }
+
+  return totals.cs / (totals.seconds / 60);
 }
 
 function resultLabel(win: boolean): string {
@@ -86,6 +109,29 @@ export function buildHistoryAnswer(question: string, summary: MatchHistorySummar
   const kills = summary.highlights.mostKills;
   const cs = summary.highlights.bestCsPerMinute;
   const bestWr = summary.highlights.bestWinrateChampion;
+
+  if (detectAverageOrStyleIntent(question) && summary.games.length > 0) {
+    const games = summary.games;
+    const avgCs = average(games.map((game) => game.cs));
+    const avgCsMin = averageCsPerMinute(games);
+    const avgVision = average(games.map((game) => game.visionScore));
+    const avgKills = average(games.map((game) => game.kills));
+    const avgDeaths = average(games.map((game) => game.deaths));
+    const avgAssists = average(games.map((game) => game.assists));
+    const winrate = Math.round((games.filter((game) => game.win).length / games.length) * 100);
+    const tips = [
+      avgCsMin < 6.5 ? "priorize wave antes de roam/luta para subir o CS/min." : "seu farm esta ok; mantenha a consistencia sem perder tempo de mapa.",
+      avgVision < 18 ? "compre/control wards nos resets e jogue visao antes de objetivo." : "visao parece aceitavel; use-a para converter objetivo.",
+      avgDeaths > 6 ? "revise mortes antes de objetivo e lutas sem prioridade." : "mortes estao controladas; procure transformar vantagem em objetivos."
+    ];
+
+    return answer(
+      `**Media recente: ${avgCsMin.toFixed(1)} CS/min, ${Math.round(avgCs)} CS por partida, ${winrate}% WR.**\n` +
+        `- KDA medio: ${avgKills.toFixed(1)}/${avgDeaths.toFixed(1)}/${avgAssists.toFixed(1)} | Visao media: ${avgVision.toFixed(1)}.\n` +
+        `- Para melhorar: ${tips.join(" ")}\n` +
+        `- Janela: ${summary.totalGames} partidas${summary.queueLabel ? ` (${summary.queueLabel})` : ""}.`
+    );
+  }
 
   if (detectBestMatchIntent(question) && best) {
     return answer(

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   detectBuildOrCurrentInfoIntent,
+  detectHistoryIntent,
   detectPersonalStatsIntent,
   detectQueue,
   extractRiotIds,
@@ -88,6 +89,14 @@ describe("intents", () => {
   it("detecta perguntas de stats pessoais", () => {
     expect(detectPersonalStatsIntent("quais sao meus melhores campeoes no lol ranked? Kaic#BR1")).toBe(true);
     expect(detectPersonalStatsIntent("qual meu melhor kda? Kaic#BR1")).toBe(true);
+    expect(detectPersonalStatsIntent("como está meu cs/m no lol e como posso melhorar? UGA#0666")).toBe(true);
+    expect(detectPersonalStatsIntent("qual meu farm medio? Kaic#BR1")).toBe(true);
+    expect(detectPersonalStatsIntent("como está meu estilo de jogo em media? Kaic#BR1")).toBe(true);
+  });
+
+  it("mantem ultima partida fora do historico agregado", () => {
+    expect(detectHistoryIntent("qual foi minha ultima partida? Kaic#BR1")).toBe(false);
+    expect(detectPersonalStatsIntent("qual foi minha ultima partida? Kaic#BR1")).toBe(false);
   });
 
   it("detecta perguntas que precisam de contexto atual", () => {
@@ -179,5 +188,68 @@ describe("deterministic answers", () => {
     expect(answer.text).toContain("Ahri");
     expect(answer.text.length).toBeLessThanOrEqual(750);
     expect(answer.sources[0]?.title).toBe("Riot Games API");
+  });
+
+  it("responde perguntas de media com metricas agregadas", () => {
+    const summary: MatchHistorySummary = {
+      riotId: "UGA#0666",
+      totalGames: 2,
+      champions: [
+        {
+          championName: "Akshan",
+          games: 1,
+          wins: 1,
+          kills: 8,
+          deaths: 3,
+          assists: 18,
+          cs: 220,
+          visionScore: 18
+        },
+        {
+          championName: "Yone",
+          games: 1,
+          wins: 0,
+          kills: 4,
+          deaths: 7,
+          assists: 5,
+          cs: 160,
+          visionScore: 10
+        }
+      ],
+      games: [
+        {
+          championName: "Akshan",
+          win: true,
+          kills: 8,
+          deaths: 3,
+          assists: 18,
+          cs: 220,
+          visionScore: 18,
+          gameDurationSeconds: 1800,
+          gameMode: "CLASSIC",
+          queueId: 440
+        },
+        {
+          championName: "Yone",
+          win: false,
+          kills: 4,
+          deaths: 7,
+          assists: 5,
+          cs: 160,
+          visionScore: 10,
+          gameDurationSeconds: 1600,
+          gameMode: "CLASSIC",
+          queueId: 440
+        }
+      ],
+      highlights: {}
+    };
+
+    const answer = buildHistoryAnswer("como está meu cs/m no lol e como posso melhorar? UGA#0666", summary);
+
+    expect(answer.text).toContain("Media recente");
+    expect(answer.text).toContain("CS/min");
+    expect(answer.text).toContain("Janela: 2 partidas");
+    expect(answer.text).not.toContain("Ultima partida");
   });
 });
