@@ -35,6 +35,7 @@ import {
   detectQueue,
   extractRiotIds,
   extractSteamId,
+  historyMatchCountForQuestion,
   isAllowedGuild,
   normalizeText,
   toBoolean,
@@ -135,8 +136,9 @@ async function processOracle(interaction: DiscordInteraction, question: string, 
           penta = { ...penta, queueLabel: queue.label };
         }
       } else if (wantsHistory) {
+        const requestMatchCount = historyMatchCountForQuestion(question, historyMatchCount);
         matchHistory = await withTimeout(
-          getMatchHistorySummary(riotIds, apiKey, region, historyMatchCount, queue?.ids),
+          getMatchHistorySummary(riotIds, apiKey, region, requestMatchCount, queue?.ids),
           15000,
           "Tempo excedido ao buscar histórico de partidas da Riot."
         ).catch((error) => {

@@ -86,6 +86,10 @@ export function toInteger(value: string | undefined, fallback: number, min: numb
   return Math.min(max, Math.max(min, parsed));
 }
 
+export function historyMatchCountForQuestion(question: string, configuredCount: number): number {
+  return detectAverageOrStyleIntent(question) ? Math.min(configuredCount, 12) : configuredCount;
+}
+
 export function truncate(value: string, maxLength: number): string {
   if (value.length <= maxLength) {
     return value;

@@ -6,6 +6,7 @@ import {
   detectQueue,
   extractRiotIds,
   formatDuration,
+  historyMatchCountForQuestion,
   isAllowedGuild,
   normalizeText,
   toInteger,
@@ -82,6 +83,11 @@ describe("helpers", () => {
     expect(toInteger("40", 20, 5, 80)).toBe(40);
     expect(toInteger("999", 20, 5, 80)).toBe(80);
     expect(toInteger("x", 20, 5, 80)).toBe(20);
+  });
+
+  it("limita janela de historico para perguntas de media", () => {
+    expect(historyMatchCountForQuestion("como está meu cs/m no lol e como posso melhorar? UGA#0666", 40)).toBe(12);
+    expect(historyMatchCountForQuestion("quais sao meus melhores campeoes? Kaic#BR1", 40)).toBe(40);
   });
 });
 
