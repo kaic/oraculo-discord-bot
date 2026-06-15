@@ -97,10 +97,12 @@ export interface ChampionHistoryStat {
   assists: number;
   cs: number;
   visionScore: number;
+  lanes: Record<string, number>;
 }
 
 export interface MatchHistoryGame {
   championName: string;
+  lane: string;
   win: boolean;
   kills: number;
   deaths: number;

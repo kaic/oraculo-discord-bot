@@ -75,21 +75,34 @@ Deixe claro que a verificação cobriu apenas as últimas ${penta.scanned} parti
 
 function matchHistoryContext(summary: MatchHistorySummary): string {
   const queueNote = summary.queueLabel ? ` na fila ${summary.queueLabel}` : "";
+  const laneCounts = new Map<string, number>();
+  for (const game of summary.games) {
+    laneCounts.set(game.lane, (laneCounts.get(game.lane) ?? 0) + 1);
+  }
+  const lanes = [...laneCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([lane, count]) => `${lane}: ${count}`)
+    .join(" | ");
   const lines = summary.champions.slice(0, 10).map((c, i) => {
     const wr = c.games > 0 ? ((c.wins / c.games) * 100).toFixed(1) : "0.0";
     const avgK = (c.kills / c.games).toFixed(1);
     const avgD = (c.deaths / c.games).toFixed(1);
     const avgA = (c.assists / c.games).toFixed(1);
     const avgCs = Math.round(c.cs / c.games);
-    return `  ${i + 1}. ${c.championName}: ${c.games} partida${c.games !== 1 ? "s" : ""} | ${c.wins}V/${c.games - c.wins}D (${wr}% WR) | KDA médio: ${avgK}/${avgD}/${avgA} | CS médio: ${avgCs}`;
+    const championLanes = Object.entries(c.lanes)
+      .sort((a, b) => b[1] - a[1])
+      .map(([lane, count]) => `${lane} ${count}`)
+      .join("/");
+    return `  ${i + 1}. ${c.championName}: ${c.games} partida${c.games !== 1 ? "s" : ""} | ${championLanes || "rota n/d"} | ${c.wins}V/${c.games - c.wins}D (${wr}% WR) | KDA médio: ${avgK}/${avgD}/${avgA} | CS médio: ${avgCs}`;
   });
 
   return `DADO ESTRUTURADO DA API OFICIAL DA RIOT — HISTÓRICO${queueNote} DAS ÚLTIMAS ${summary.totalGames} PARTIDAS:
 - Riot ID: ${summary.riotId}
 - Total de partidas analisadas: ${summary.totalGames}
+- Rotas/posicoes detectadas: ${lanes || "sem rota clara"}
 - Campeões do mais jogado ao menos jogado:
 ${lines.join("\n")}
-Use esses dados como fonte primária. Não invente estatísticas.`;
+Use esses dados como fonte primária. Para perguntas de estilo/melhoria, compare campeões, rotas, CS/min, visão, mortes, duração e consistência. Não dê uma resposta genérica igual para todos. Não invente estatísticas.`;
 }
 
 function deadlockHistoryContext(summary: DeadlockPlayerSummary): string {

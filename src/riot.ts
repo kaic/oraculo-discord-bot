@@ -17,6 +17,10 @@ interface RiotAccount {
 interface RiotParticipant {
   puuid: string;
   championName: string;
+  teamPosition?: string;
+  individualPosition?: string;
+  lane?: string;
+  role?: string;
   win: boolean;
   kills: number;
   deaths: number;
@@ -25,6 +29,25 @@ interface RiotParticipant {
   neutralMinionsKilled: number;
   visionScore: number;
   pentaKills: number;
+}
+
+function participantLane(participant: RiotParticipant): string {
+  const raw = participant.teamPosition || participant.individualPosition || participant.lane || participant.role || "UNKNOWN";
+  const normalized = raw.toUpperCase();
+  const labels: Record<string, string> = {
+    TOP: "Top",
+    JUNGLE: "Jungle",
+    MIDDLE: "Mid",
+    MID: "Mid",
+    BOTTOM: "Bot",
+    ADC: "Bot",
+    UTILITY: "Suporte",
+    SUPPORT: "Suporte",
+    NONE: "Sem rota",
+    UNKNOWN: "Sem rota"
+  };
+
+  return labels[normalized] ?? raw;
 }
 
 interface RiotMatch {
@@ -193,6 +216,7 @@ function summarize(
 function summarizeHistoryGame(match: RiotMatch, participant: RiotParticipant): MatchHistoryGame {
   return {
     championName: participant.championName,
+    lane: participantLane(participant),
     win: participant.win,
     kills: participant.kills ?? 0,
     deaths: participant.deaths ?? 0,
@@ -313,7 +337,8 @@ export async function getMatchHistorySummary(
         deaths: 0,
         assists: 0,
         cs: 0,
-        visionScore: 0
+        visionScore: 0,
+        lanes: {}
       };
 
       existing.games += 1;
@@ -323,6 +348,8 @@ export async function getMatchHistorySummary(
       existing.assists += participant.assists ?? 0;
       existing.cs += (participant.totalMinionsKilled ?? 0) + (participant.neutralMinionsKilled ?? 0);
       existing.visionScore += participant.visionScore ?? 0;
+      const lane = participantLane(participant);
+      existing.lanes[lane] = (existing.lanes[lane] ?? 0) + 1;
 
       champMap.set(name, existing);
     }

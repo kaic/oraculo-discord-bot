@@ -87,7 +87,11 @@ export function toInteger(value: string | undefined, fallback: number, min: numb
 }
 
 export function historyMatchCountForQuestion(question: string, configuredCount: number): number {
-  return detectAverageOrStyleIntent(question) ? Math.min(configuredCount, 12) : configuredCount;
+  const n = normalizeText(question);
+  if (/\b(cs m|cs min|cs minuto|cs por minuto|farm medio|farm por minuto)\b/.test(n)) {
+    return Math.min(configuredCount, 12);
+  }
+  return detectAverageOrStyleIntent(question) ? Math.min(configuredCount, 20) : configuredCount;
 }
 
 export function truncate(value: string, maxLength: number): string {

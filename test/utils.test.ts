@@ -96,6 +96,7 @@ describe("helpers", () => {
 
   it("limita janela de historico para perguntas de media", () => {
     expect(historyMatchCountForQuestion("como está meu cs/m no lol e como posso melhorar? UGA#0666", 40)).toBe(12);
+    expect(historyMatchCountForQuestion("sou ruim no lol? UGA#0666", 40)).toBe(20);
     expect(historyMatchCountForQuestion("quais sao meus melhores campeoes? Kaic#BR1", 40)).toBe(40);
   });
 });
@@ -146,7 +147,8 @@ describe("deterministic answers", () => {
           deaths: 6,
           assists: 20,
           cs: 430,
-          visionScore: 35
+          visionScore: 35,
+          lanes: { Mid: 2 }
         },
         {
           championName: "Syndra",
@@ -156,12 +158,14 @@ describe("deterministic answers", () => {
           deaths: 2,
           assists: 4,
           cs: 210,
-          visionScore: 12
+          visionScore: 12,
+          lanes: { Mid: 1 }
         }
       ],
       games: [
         {
           championName: "Ahri",
+          lane: "Mid",
           win: true,
           kills: 8,
           deaths: 3,
@@ -174,6 +178,7 @@ describe("deterministic answers", () => {
         },
         {
           championName: "Syndra",
+          lane: "Mid",
           win: false,
           kills: 9,
           deaths: 2,
@@ -188,6 +193,7 @@ describe("deterministic answers", () => {
       highlights: {
         bestKda: {
           championName: "Syndra",
+          lane: "Mid",
           win: false,
           kills: 9,
           deaths: 2,
@@ -206,7 +212,8 @@ describe("deterministic answers", () => {
           deaths: 6,
           assists: 20,
           cs: 430,
-          visionScore: 35
+          visionScore: 35,
+          lanes: { Mid: 2 }
         }
       }
     };
@@ -230,7 +237,8 @@ describe("deterministic answers", () => {
           deaths: 3,
           assists: 18,
           cs: 220,
-          visionScore: 18
+          visionScore: 18,
+          lanes: { Bot: 1 }
         },
         {
           championName: "Yone",
@@ -240,12 +248,14 @@ describe("deterministic answers", () => {
           deaths: 7,
           assists: 5,
           cs: 160,
-          visionScore: 10
+          visionScore: 10,
+          lanes: { Mid: 1 }
         }
       ],
       games: [
         {
           championName: "Akshan",
+          lane: "Bot",
           win: true,
           kills: 8,
           deaths: 3,
@@ -258,6 +268,7 @@ describe("deterministic answers", () => {
         },
         {
           championName: "Yone",
+          lane: "Mid",
           win: false,
           kills: 4,
           deaths: 7,
@@ -276,6 +287,8 @@ describe("deterministic answers", () => {
 
     expect(answer.text).toContain("Resumo direto");
     expect(answer.text).toContain("CS/min");
+    expect(answer.text).toContain("perfil Bot 1j / Mid 1j");
+    expect(answer.text).toContain("Campeoes:");
     expect(answer.text).toContain("Janela: 2 partidas");
     expect(answer.text).not.toContain("Ultima partida");
   });

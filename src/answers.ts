@@ -67,6 +67,45 @@ function averageCsPerMinute(games: MatchHistoryGame[]): number {
   return totals.cs / (totals.seconds / 60);
 }
 
+function perMinute(total: number, games: MatchHistoryGame[]): number {
+  const seconds = games.reduce((sum, game) => sum + Math.max(0, game.gameDurationSeconds), 0);
+  return seconds > 0 ? total / (seconds / 60) : 0;
+}
+
+function laneLine(games: MatchHistoryGame[]): string {
+  const counts = new Map<string, number>();
+  for (const game of games) {
+    counts.set(game.lane, (counts.get(game.lane) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 2)
+    .map(([lane, count]) => `${lane} ${count}j`)
+    .join(" / ");
+}
+
+function championProfile(summary: MatchHistorySummary): {
+  topChampion?: string;
+  bestChampion?: string;
+  riskyChampion?: string;
+  poolLabel: string;
+} {
+  const topChampion = summary.champions[0];
+  const bestChampion = [...summary.champions]
+    .filter((champion) => champion.games >= 2)
+    .sort((a, b) => b.wins / b.games - a.wins / a.games || (b.kills + b.assists) / Math.max(1, b.deaths) - (a.kills + a.assists) / Math.max(1, a.deaths))[0];
+  const riskyChampion = [...summary.champions]
+    .filter((champion) => champion.games >= 2)
+    .sort((a, b) => b.deaths / b.games - a.deaths / a.games)[0];
+
+  return {
+    ...(topChampion ? { topChampion: topChampion.championName } : {}),
+    ...(bestChampion ? { bestChampion: bestChampion.championName } : {}),
+    ...(riskyChampion ? { riskyChampion: riskyChampion.championName } : {}),
+    poolLabel: summary.champions.length <= 3 ? "pool concentrada" : summary.champions.length >= 7 ? "pool espalhada" : "pool variada"
+  };
+}
+
 function resultLabel(win: boolean): string {
   return win ? "vitoria" : "derrota";
 }
@@ -131,6 +170,10 @@ export function buildHistoryAnswer(question: string, summary: MatchHistorySummar
     const avgDeaths = average(games.map((game) => game.deaths));
     const avgAssists = average(games.map((game) => game.assists));
     const winrate = Math.round((games.filter((game) => game.win).length / games.length) * 100);
+    const avgDuration = average(games.map((game) => game.gameDurationSeconds)) / 60;
+    const avgVisionPerMin = perMinute(games.reduce((sum, game) => sum + game.visionScore, 0), games);
+    const profile = championProfile(summary);
+    const lanes = laneLine(games) || "sem rota clara";
     const verdict =
       winrate >= 55 && avgDeaths <= 5.5 && avgCsMin >= 6
         ? "voce parece bem encaminhado"
@@ -138,14 +181,15 @@ export function buildHistoryAnswer(question: string, summary: MatchHistorySummar
           ? "tem coisa clara pra arrumar"
           : "voce esta no meio do caminho";
     const tips = [
-      avgCsMin < 6.5 ? "priorize wave antes de roam/luta para subir o CS/min." : "seu farm esta ok; mantenha a consistencia sem perder tempo de mapa.",
-      avgVision < 18 ? "compre/control wards nos resets e jogue visao antes de objetivo." : "visao parece aceitavel; use-a para converter objetivo.",
-      avgDeaths > 6 ? "revise mortes antes de objetivo e lutas sem prioridade." : "mortes estao controladas; procure transformar vantagem em objetivos."
+      avgCsMin < 6.5 ? "suba CS/min antes de roam/luta." : "farm ok; use tempo livre pra objetivo/visao.",
+      avgVisionPerMin < 0.55 ? "visao por minuto baixa: ward antes de objetivo e reset." : "visao acompanha bem o tempo de jogo.",
+      avgDeaths > 6 ? `mortes altas; cuidado especial quando jogar ${profile.riskyChampion ?? "seus picks agressivos"}.` : "mortes controladas; force mais objetivos quando vencer luta."
     ];
 
     return answer(
-      `**Resumo direto: ${verdict}: ${avgCsMin.toFixed(1)} CS/min, ${Math.round(avgCs)} CS/jogo, ${winrate}% WR.**\n` +
-        `- KDA medio: ${avgKills.toFixed(1)}/${avgDeaths.toFixed(1)}/${avgAssists.toFixed(1)} | Visao media: ${avgVision.toFixed(1)}.\n` +
+      `**Resumo direto: ${verdict}; perfil ${lanes}, ${profile.poolLabel}.**\n` +
+        `- Media: ${avgCsMin.toFixed(1)} CS/min, ${winrate}% WR, KDA ${avgKills.toFixed(1)}/${avgDeaths.toFixed(1)}/${avgAssists.toFixed(1)}, ${avgVision.toFixed(1)} visao (${avgVisionPerMin.toFixed(2)}/min).\n` +
+        `- Campeoes: mais jogado ${profile.topChampion ?? "n/d"}; melhor sinal ${profile.bestChampion ?? "sem 2+ jogos"}; partida media ${avgDuration.toFixed(0)}min.\n` +
         `- O que melhorar: ${tips.join(" ")}\n` +
         `- Janela: ${summary.totalGames} partidas${summary.queueLabel ? ` (${summary.queueLabel})` : ""}.`
     );
