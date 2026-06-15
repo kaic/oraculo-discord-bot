@@ -7,7 +7,7 @@ import type {
   RiotPentaResult,
   SourceLink
 } from "./types";
-import { escapeMarkdownLabel, formatDuration, truncate } from "./utils";
+import { escapeMarkdownLabel, formatDuration, truncate, truncateAtBoundary } from "./utils";
 
 const DISCORD_API_BASE = "https://discord.com/api/v10";
 const EMBED_COLOR = 0x7c3aed;
@@ -166,7 +166,7 @@ export function buildSuccessMessage(params: {
   deadlockSummary?: DeadlockPlayerSummary | null;
 }): DiscordMessagePayload {
   const sourceText = sourcesMarkdown(params.answer.sources);
-  const description = truncate(params.answer.text, params.responseMaxChars);
+  const description = truncateAtBoundary(params.answer.text, params.responseMaxChars);
   const fields: EmbedField[] = [];
 
   // Estatísticas do jogador em destaque (grid), antes do texto-fonte.

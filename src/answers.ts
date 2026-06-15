@@ -131,6 +131,12 @@ export function buildHistoryAnswer(question: string, summary: MatchHistorySummar
     const avgDeaths = average(games.map((game) => game.deaths));
     const avgAssists = average(games.map((game) => game.assists));
     const winrate = Math.round((games.filter((game) => game.win).length / games.length) * 100);
+    const verdict =
+      winrate >= 55 && avgDeaths <= 5.5 && avgCsMin >= 6
+        ? "voce parece bem encaminhado"
+        : winrate < 45 || avgDeaths > 6.5 || avgCsMin < 5.5
+          ? "tem coisa clara pra arrumar"
+          : "voce esta no meio do caminho";
     const tips = [
       avgCsMin < 6.5 ? "priorize wave antes de roam/luta para subir o CS/min." : "seu farm esta ok; mantenha a consistencia sem perder tempo de mapa.",
       avgVision < 18 ? "compre/control wards nos resets e jogue visao antes de objetivo." : "visao parece aceitavel; use-a para converter objetivo.",
@@ -138,9 +144,9 @@ export function buildHistoryAnswer(question: string, summary: MatchHistorySummar
     ];
 
     return answer(
-      `**Media recente: ${avgCsMin.toFixed(1)} CS/min, ${Math.round(avgCs)} CS por partida, ${winrate}% WR.**\n` +
+      `**Resumo direto: ${verdict}: ${avgCsMin.toFixed(1)} CS/min, ${Math.round(avgCs)} CS/jogo, ${winrate}% WR.**\n` +
         `- KDA medio: ${avgKills.toFixed(1)}/${avgDeaths.toFixed(1)}/${avgAssists.toFixed(1)} | Visao media: ${avgVision.toFixed(1)}.\n` +
-        `- Para melhorar: ${tips.join(" ")}\n` +
+        `- O que melhorar: ${tips.join(" ")}\n` +
         `- Janela: ${summary.totalGames} partidas${summary.queueLabel ? ` (${summary.queueLabel})` : ""}.`
     );
   }

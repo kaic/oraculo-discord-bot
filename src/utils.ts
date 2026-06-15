@@ -98,6 +98,23 @@ export function truncate(value: string, maxLength: number): string {
   return `${value.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
 }
 
+export function truncateAtBoundary(value: string, maxLength: number): string {
+  if (value.length <= maxLength) {
+    return value;
+  }
+
+  const slice = value.slice(0, Math.max(0, maxLength - 12)).trimEnd();
+  const boundary = Math.max(
+    slice.lastIndexOf("\n- "),
+    slice.lastIndexOf("\n"),
+    slice.lastIndexOf(". "),
+    slice.lastIndexOf("; ")
+  );
+  const text = boundary >= Math.floor(maxLength * 0.35) ? slice.slice(0, boundary).trimEnd() : slice;
+
+  return `${text}\n- Continua se quiser mais detalhes.`;
+}
+
 export function uniqueSources(sources: SourceLink[], limit = 5): SourceLink[] {
   const seen = new Set<string>();
   const result: SourceLink[] = [];
@@ -181,10 +198,13 @@ export function detectLatestMatchIntent(question: string): boolean {
 export function detectAverageOrStyleIntent(question: string): boolean {
   const n = normalizeText(question);
   return (
+    /\b(sou|to|estou|jogo|jogando)\b.*\b(ruim|horrivel|pessimo|mal|bem|bom|boa|decente|forte|fraco|fraca)\b/.test(n) ||
+    /\b(o que|oq|que)\b.*\b(ruim|bom|boa|melhorar|arrumar|corrigir|falta|faltando|erro|erros)\b/.test(n) ||
+    /\b(pontos fracos|ponto fraco|pontos fortes|ponto forte|onde melhorar|no que melhorar)\b/.test(n) ||
     /\b(media|medio|medias|medios|average|avg)\b/.test(n) ||
     /\b(cs m|cs min|cs minuto|cs por minuto|farm medio|farm por minuto)\b/.test(n) ||
-    /\b(estilo de jogo|como estou|como esta|como ta|como melhorar|melhorar|melhorar meu|melhorar minha|jogatina|jogatinas)\b/.test(n) ||
-    /\b(o que posso fazer|o que eu posso fazer)\b/.test(n) ||
+    /\b(estilo de jogo|como estou|como esta|como ta|como melhorar|melhorar|melhorar meu|melhorar minha|jogatina|jogatinas|minhas partidas|meus jogos)\b/.test(n) ||
+    /\b(o que posso fazer|o que eu posso fazer|o que da pra fazer|oq da pra fazer)\b/.test(n) ||
     /\b(desempenho geral|performance geral)\b/.test(n)
   );
 }

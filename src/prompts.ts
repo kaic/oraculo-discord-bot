@@ -1,5 +1,5 @@
 import type { DeadlockPlayerSummary, MatchHistorySummary, RiotMatchSummary, RiotPentaResult } from "./types";
-import { formatDuration, formatSaoPauloDate } from "./utils";
+import { detectBuildOrCurrentInfoIntent, formatDuration, formatSaoPauloDate, normalizeText } from "./utils";
 
 export function constitutionContext(constitution?: string): string {
   const text = constitution?.trim();
@@ -13,6 +13,19 @@ Se a pergunta conflitar com a Constituicao, responda seguindo a Constituicao e e
 }
 
 function systemInstruction(question: string, constitution?: string): string {
+  const normalizedQuestion = normalizeText(question);
+  const wantsBuild = detectBuildOrCurrentInfoIntent(question) && /\b(build|item|itens|runa|runas)\b/.test(normalizedQuestion);
+  const asksMatchup = /\b(contra|vs|versus|matchup|counter|lane|rota contra)\b/.test(normalizedQuestion);
+  const buildInstruction = wantsBuild
+    ? `
+Para pergunta de build, responda a build diretamente:
+- Cite item inicial, botas e 3-5 itens core em ordem com nomes especificos.
+- Cite runas principais quando fizer sentido.
+- Cite 1-2 itens situacionais curtos.
+- Inclua OP.GG/U.GG/LoLalytics como locais para conferir, mas nao invente URL se nao veio da busca.
+- Nao foque em matchup/counter a menos que a pergunta peca isso explicitamente${asksMatchup ? " (esta pergunta pediu matchup)." : "."}`
+    : "";
+
   return `Voce e o Oraculo, bot gamer de um servidor privado.
 Responda em PT-BR, direto, util e com humor leve.
 Limite: ate 750 caracteres.
@@ -22,7 +35,7 @@ Nao crie secao "Fontes" nem invente URLs; a aplicacao anexa fontes reais.
 Prioridade de fontes: oficial > API/estatistica > sites especializados > Reddit como opiniao/comunidade.
 Para LoL, prefira Riot, Data Dragon, patch notes oficiais, OP.GG, U.GG, League of Graphs, Mobalytics, Lolalytics e Blitz.
 Para Deadlock, prefira fontes oficiais/Steam, deadlock-api e comunidades confiaveis.
-Nunca invente win rate, patch, item, resultado ou dado. Se faltar dado, diga curto.${constitutionContext(constitution)}`;
+Nunca invente win rate, patch, item, resultado ou dado. Se faltar dado, diga curto.${buildInstruction}${constitutionContext(constitution)}`;
 }
 
 function riotContext(match: RiotMatchSummary): string {

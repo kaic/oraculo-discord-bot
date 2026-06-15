@@ -12,6 +12,7 @@ import {
   normalizeText,
   toInteger,
   truncate,
+  truncateAtBoundary,
   uniqueSources
 } from "../src/utils";
 import { buildConstitutionAnswer, buildHistoryAnswer } from "../src/answers";
@@ -71,6 +72,12 @@ describe("helpers", () => {
     expect(truncate("abcdef", 5)).toBe("abcd…");
   });
 
+  it("trunca em limite legivel para embed", () => {
+    const text = "**resumo direto**: abc.\n- Primeiro ponto completo.\n- Segundo ponto que ficaria cortado no meio da frase";
+
+    expect(truncateAtBoundary(text, 55)).toBe("**resumo direto**: abc.\n- Continua se quiser mais detalhes.");
+  });
+
   it("remove fontes repetidas", () => {
     expect(
       uniqueSources([
@@ -101,6 +108,9 @@ describe("intents", () => {
     expect(detectPersonalStatsIntent("qual meu farm medio? Kaic#BR1")).toBe(true);
     expect(detectPersonalStatsIntent("como está meu estilo de jogo em media? Kaic#BR1")).toBe(true);
     expect(detectPersonalStatsIntent("o que eu posso fazer para melhorar nas minhas jogatinas de league of legends? gnomodeoculos#7253")).toBe(true);
+    expect(detectPersonalStatsIntent("sou ruim no lol? gnomodeoculos#7253")).toBe(true);
+    expect(detectPersonalStatsIntent("o que esta ruim nas minhas partidas? UGA#0666")).toBe(true);
+    expect(detectPersonalStatsIntent("no que eu preciso melhorar? Kaic#BR1")).toBe(true);
   });
 
   it("mantem ultima partida fora do historico agregado", () => {
@@ -264,7 +274,7 @@ describe("deterministic answers", () => {
 
     const answer = buildHistoryAnswer("como está meu cs/m no lol e como posso melhorar? UGA#0666", summary);
 
-    expect(answer.text).toContain("Media recente");
+    expect(answer.text).toContain("Resumo direto");
     expect(answer.text).toContain("CS/min");
     expect(answer.text).toContain("Janela: 2 partidas");
     expect(answer.text).not.toContain("Ultima partida");
@@ -286,5 +296,13 @@ describe("prompts", () => {
     expect(prompt.systemInstruction).toContain("Constituicao do servidor");
     expect(prompt.systemInstruction).toContain("Corki e proibido.");
     expect(prompt.systemInstruction).toContain("prioridade maxima");
+  });
+
+  it("orienta perguntas de build para itens em ordem sem matchup automatico", () => {
+    const prompt = buildGeminiRequest("qual build de corki adc?", null, null, null, null, "");
+
+    expect(prompt.systemInstruction).toContain("item inicial, botas e 3-5 itens core em ordem");
+    expect(prompt.systemInstruction).toContain("Nao foque em matchup/counter");
+    expect(prompt.systemInstruction).toContain("OP.GG/U.GG/LoLalytics");
   });
 });
